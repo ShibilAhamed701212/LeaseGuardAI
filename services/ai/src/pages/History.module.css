@@ -1,0 +1,5 @@
+.header{display:flex;flex-direction:column;gap:0.4rem}
+.title{font-size:1.8rem;font-weight:800;color:var(--text);letter-spacing:-0.02em}
+.sub{font-size:0.9rem;color:var(--text-muted)}
+.back{background:none;border:none;color:var(--accent-bright);font-size:0.85rem;font-weight:600;padding:0;cursor:pointer;width:fit-content;transition:color var(--transition)}
+.back:hover{color:var(--text)}

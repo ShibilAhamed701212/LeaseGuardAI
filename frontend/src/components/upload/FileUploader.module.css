@@ -1,0 +1,13 @@
+.zone{border:1.5px dashed var(--border-bright);border-radius:var(--radius-lg);padding:2.5rem 2rem;text-align:center;cursor:pointer;transition:background var(--transition),border-color var(--transition);background:var(--surface)}
+.zone:hover,.drag{background:var(--surface-hover);border-color:var(--accent)}
+.picked{border-color:var(--success);border-style:solid}
+.icon{color:var(--text-muted);margin-bottom:0.75rem;display:flex;justify-content:center}
+.label{color:var(--text-muted);font-size:0.9rem}
+.label span{color:var(--accent-bright)}
+.hint{color:var(--text-dim);font-size:0.75rem;margin-top:0.4rem;font-family:var(--font-mono);letter-spacing:0.08em}
+.error{color:var(--danger);font-size:0.82rem;margin-top:0.75rem}
+.fileInfo{display:flex;align-items:center;gap:1rem;text-align:left}
+.fileIcon{font-size:2rem;flex-shrink:0}
+.fileName{font-size:0.9rem;font-weight:600;color:var(--text);word-break:break-all}
+.fileMeta{font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px}
+.swap{margin-left:auto;font-size:0.75rem;color:var(--accent-bright);flex-shrink:0}

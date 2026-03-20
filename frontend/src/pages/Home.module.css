@@ -1,0 +1,21 @@
+.page{max-width:700px;margin:0 auto;padding:3rem 1.5rem 6rem;display:flex;flex-direction:column;gap:3.5rem}
+.hero{display:flex;flex-direction:column;gap:1.5rem;padding-top:1rem}
+.badge{display:inline-block;width:fit-content;padding:0.35rem 1rem;background:var(--accent-glow);border:1px solid var(--accent);border-radius:20px;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent-bright)}
+.title{font-size:clamp(2.2rem,6vw,3.2rem);font-weight:800;line-height:1.08;color:var(--text);letter-spacing:-0.03em}
+.title span{color:var(--accent-bright)}
+.sub{font-size:1rem;color:var(--text-muted);line-height:1.7;max-width:520px}
+.actions{display:flex;gap:1rem;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1rem}
+.feature{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.3rem;display:flex;flex-direction:column;gap:0.6rem;transition:border-color var(--transition)}
+.feature:hover{border-color:var(--border-bright)}
+.fIcon{font-size:1.4rem}
+.fTitle{font-size:0.9rem;font-weight:700;color:var(--text)}
+.fDesc{font-size:0.8rem;color:var(--text-muted);line-height:1.5}
+.flow{display:flex;flex-direction:column;gap:1.5rem}
+.flowTitle{font-size:1rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em}
+.steps{display:flex;align-items:flex-start;gap:0}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;gap:0.5rem;position:relative}
+.step::after{content:"";position:absolute;top:16px;left:60%;width:80%;height:1px;background:var(--border)}
+.step:last-child::after{display:none}
+.stepNum{width:32px;height:32px;border-radius:50%;background:var(--surface);border:1.5px solid var(--border-bright);display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:700;color:var(--accent-bright);z-index:1}
+.stepLabel{font-size:0.68rem;color:var(--text-muted);text-align:center;font-weight:600;padding:0 4px}

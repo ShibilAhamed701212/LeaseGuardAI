@@ -1,0 +1,12 @@
+.list{list-style:none;display:flex;flex-direction:column;gap:0.5rem}
+.item{display:flex;align-items:center;gap:0.75rem;padding:0.9rem 1.1rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color var(--transition),background var(--transition)}
+.item:hover{border-color:var(--accent);background:var(--surface-hover)}
+.info{flex:1;display:flex;justify-content:space-between;align-items:center;gap:1rem;overflow:hidden}
+.left{display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.id{font-size:0.75rem;font-family:var(--font-mono);color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vehicle{font-size:0.85rem;font-weight:600;color:var(--text)}
+.date{font-size:0.72rem;color:var(--text-dim)}
+.score{font-size:0.9rem;font-weight:700;flex-shrink:0}
+.del{background:none;border:none;color:var(--text-dim);font-size:0.9rem;padding:0.2rem 0.5rem;border-radius:4px;transition:color var(--transition);flex-shrink:0}
+.del:hover{color:var(--danger)}
+.empty{color:var(--text-muted);font-size:0.9rem}

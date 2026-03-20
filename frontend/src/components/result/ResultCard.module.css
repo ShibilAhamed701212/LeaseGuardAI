@@ -1,0 +1,22 @@
+.wrapper{display:flex;flex-direction:column;gap:1rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.4rem 1.6rem}
+.sec{font-size:0.8rem;text-transform:uppercase;letter-spacing:0.09em;color:var(--accent-bright);font-weight:700;margin-bottom:1rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1.5rem}
+.field dt{font-size:0.75rem;color:var(--text-muted);text-transform:capitalize;margin-bottom:2px}
+.field dd{font-size:0.92rem;font-weight:600;color:var(--text)}
+.na{color:var(--text-dim)}
+.mono{font-family:var(--font-mono);font-size:0.8rem;letter-spacing:0.04em}
+.bigNum{font-size:2.2rem;font-weight:800;color:var(--accent-bright);letter-spacing:-0.02em;margin-bottom:0.75rem}
+.conf{display:flex;align-items:center;gap:0.75rem}
+.confLbl{font-size:0.75rem;color:var(--text-muted);white-space:nowrap}
+.confBar{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.confFill{height:100%;background:var(--accent);border-radius:3px;transition:width 0.6s ease}
+.confPct{font-size:0.75rem;font-family:var(--font-mono);color:var(--text-muted);white-space:nowrap}
+.scoreLine{display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem}
+.track{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+.fill{height:100%;border-radius:4px;transition:width 0.7s ease}
+.scoreNum{font-size:1.5rem;font-weight:800;color:var(--text)}
+.scoreOf{font-size:0.75rem;color:var(--text-muted);font-weight:400}
+.scoreHint{font-size:0.82rem}
+.tips{list-style:none;display:flex;flex-direction:column;gap:0.5rem}
+.tip{padding:0.6rem 0.9rem;background:var(--surface-hover);border-radius:8px;border-left:2px solid var(--accent);font-size:0.875rem;color:var(--text);line-height:1.5}

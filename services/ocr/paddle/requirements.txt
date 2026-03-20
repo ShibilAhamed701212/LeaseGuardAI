@@ -1,0 +1,7 @@
+flask==3.0.2
+paddlepaddle==2.6.0
+paddleocr==2.7.3
+Pillow==10.2.0
+pdf2image==1.17.0
+numpy==1.26.4
+gunicorn==21.2.0

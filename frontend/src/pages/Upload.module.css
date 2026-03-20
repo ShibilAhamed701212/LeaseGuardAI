@@ -1,0 +1,6 @@
+.header{display:flex;flex-direction:column;gap:0.4rem}
+.title{font-size:1.8rem;font-weight:800;color:var(--text);letter-spacing:-0.02em}
+.sub{font-size:0.9rem;color:var(--text-muted)}
+.form{display:flex;flex-direction:column;gap:1.5rem}
+.error{display:flex;align-items:flex-start;gap:0.5rem;background:rgba(255,79,79,0.08);border:1px solid rgba(255,79,79,0.3);color:var(--danger);font-size:0.85rem;padding:0.75rem 1rem;border-radius:var(--radius)}
+.loader{display:flex;justify-content:center;padding:3rem 0}

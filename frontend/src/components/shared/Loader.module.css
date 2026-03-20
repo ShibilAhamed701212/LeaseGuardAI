@@ -1,0 +1,14 @@
+.wrapper  { display:flex; flex-direction:column; align-items:center; gap:1rem; padding:2rem; }
+.message  { color:var(--text-muted); font-size:0.9rem; animation:pulse 1.5s ease-in-out infinite; text-align:center; }
+.cycling  { animation:fadeSlide 0.5s ease; }
+@keyframes pulse     { 0%,100%{opacity:0.5} 50%{opacity:1} }
+@keyframes fadeSlide { 0%{opacity:0;transform:translateY(4px)} 100%{opacity:1;transform:translateY(0)} }
+.ring     { display:inline-block; position:relative; }
+.ring div { box-sizing:border-box; display:block; position:absolute; border-radius:50%; border:2px solid transparent; border-top-color:var(--accent); animation:spin 1s cubic-bezier(0.5,0,0.5,1) infinite; }
+.ring div:nth-child(1){animation-delay:-0.45s}
+.ring div:nth-child(2){animation-delay:-0.3s}
+.ring div:nth-child(3){animation-delay:-0.15s}
+.sm{width:24px;height:24px} .sm div{width:24px;height:24px}
+.md{width:40px;height:40px} .md div{width:40px;height:40px}
+.lg{width:56px;height:56px} .lg div{width:56px;height:56px}
+@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
