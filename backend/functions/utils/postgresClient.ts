@@ -21,11 +21,7 @@ let _pool: Pool | null = null;
 function getPool(): Pool {
   if (_pool) return _pool;
 
-  if (!process.env.PG_USER || !process.env.PG_PASSWORD) {
-    throw new Error("PG_USER and PG_PASSWORD environment variables are required");
-  }
-
-  _pool = new Pool({
+  const config = {
     host: process.env.PG_HOST ?? "localhost",
     port: parseInt(process.env.PG_PORT ?? "5432", 10),
     database: process.env.PG_DATABASE ?? "ocr_agent",
@@ -34,12 +30,14 @@ function getPool(): Pool {
     ssl: process.env.PG_SSL === "true" ? { rejectUnauthorized: false } : false,
     max: 10,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
-  });
+    connectionTimeoutMillis: 10_000, // 10s timeout
+  };
+
+  logger.info("Creating PG pool", { host: config.host, user: config.user, ssl: !!config.ssl });
+  _pool = new Pool(config);
 
   _pool.on("error", (err) => {
     logger.error("PG pool background error", { message: err.message });
-    // Do NOT destroy the pool here — let the next query attempt reconnect
   });
 
   return _pool;
@@ -61,6 +59,7 @@ const MIGRATION_SQL = `
 `;
 
 export async function migrate(): Promise<void> {
+  logger.info("Starting DB migration...");
   const pool = getPool();
   await pool.query(MIGRATION_SQL);
   logger.info("DB migration complete");
