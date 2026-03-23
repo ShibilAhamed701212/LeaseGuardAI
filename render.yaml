@@ -1,0 +1,54 @@
+# render.yaml — Render Blueprint (Infrastructure as Code)
+# Deploy: Connect your GitHub repo to Render, it auto-detects this file.
+
+services:
+  - type: web
+    name: ocr-agent-api
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: PG_HOST
+        sync: false
+      - key: PG_PORT
+        value: "5432"
+      - key: PG_DATABASE
+        sync: false
+      - key: PG_USER
+        sync: false
+      - key: PG_PASSWORD
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: MINIO_ENDPOINT
+        sync: false
+      - key: MINIO_PORT
+        value: "9000"
+      - key: MINIO_USE_SSL
+        value: "true"
+      - key: MINIO_ACCESS_KEY
+        sync: false
+      - key: MINIO_SECRET_KEY
+        sync: false
+      - key: MINIO_BUCKET
+        value: "ocr-agent"
+      - key: N8N_WEBHOOK_URL
+        sync: false
+      - key: N8N_SECRET
+        sync: false
+      - key: SIGNED_URL_EXPIRY_SECONDS
+        value: "3600"
+      - key: REDIS_RESULT_TTL_SECONDS
+        value: "86400"
+    healthCheckPath: /health

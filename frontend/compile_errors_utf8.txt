@@ -1,0 +1,11 @@
+﻿src/components/history/HistoryList.tsx(5,19): error TS2307: Cannot find module './HistoryList.module.css' or its corresponding type declarations.
+src/components/result/ResultCard.tsx(3,19): error TS2307: Cannot find module './ResultCard.module.css' or its corresponding type declarations.
+src/components/shared/Loader.tsx(2,20): error TS2307: Cannot find module './Loader.module.css' or its corresponding type declarations.
+src/components/shared/StatusBar.tsx(1,20): error TS2307: Cannot find module './StatusBar.module.css' or its corresponding type declarations.
+src/components/upload/FileUploader.tsx(3,20): error TS2307: Cannot find module './FileUploader.module.css' or its corresponding type declarations.
+src/components/upload/ModelSelector.tsx(2,20): error TS2307: Cannot find module './ModelSelector.module.css' or its corresponding type declarations.
+src/pages/History.tsx(7,19): error TS2307: Cannot find module './History.module.css' or its corresponding type declarations.
+src/pages/Home.tsx(2,20): error TS2307: Cannot find module './Home.module.css' or its corresponding type declarations.
+src/pages/Result.tsx(6,20): error TS2307: Cannot find module './Result.module.css' or its corresponding type declarations.
+src/pages/Upload.tsx(9,20): error TS2307: Cannot find module './Upload.module.css' or its corresponding type declarations.
+src/services/api.ts(1,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'.

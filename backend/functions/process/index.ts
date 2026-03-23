@@ -24,17 +24,17 @@ interface ProcessBody {
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   const { job_id, ocr, ai } = req.body as ProcessBody;
 
-  // Validate all required fields and enums
-  if (!job_id || !ocr || !ai) {
-    res.status(400).json({ error: "Invalid job_id or parameters" });
+  // ── Input validation ───────────────────────────────────────
+  if (!job_id || typeof job_id !== "string") {
+    res.status(400).json({ error: "job_id is required" });
     return;
   }
-  if (!(VALID_OCR as readonly string[]).includes(ocr)) {
-    res.status(400).json({ error: "Invalid job_id or parameters" });
+  if (!ocr || !(VALID_OCR as readonly string[]).includes(ocr)) {
+    res.status(400).json({ error: `Invalid ocr engine. Must be one of: ${VALID_OCR.join(", ")}` });
     return;
   }
-  if (!(VALID_AI as readonly string[]).includes(ai)) {
-    res.status(400).json({ error: "Invalid job_id or parameters" });
+  if (!ai || !(VALID_AI as readonly string[]).includes(ai)) {
+    res.status(400).json({ error: `Invalid ai model. Must be one of: ${VALID_AI.join(", ")}` });
     return;
   }
 
@@ -42,18 +42,34 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     // 1. Validate job exists
     const job = await getJob(job_id);
     if (!job) {
-      res.status(404).json({ error: "Invalid job_id or parameters" });
+      res.status(404).json({ error: "Job not found" });
       return;
     }
     if (job.status === "processing") {
-      res.status(409).json({ error: "Invalid job_id or parameters" });
+      res.status(409).json({ error: "Job is already being processed" });
+      return;
+    }
+    if (job.status === "deleted") {
+      res.status(410).json({ error: "Job has been deleted" });
       return;
     }
 
-    // 2. Generate signed MinIO URL for n8n
-    const ext        = "pdf";
-    const objectName = `uploads/${job_id}/file.${ext}`;
-    const file_url   = await getSignedUrl(objectName);
+    // 2. Generate signed MinIO URL for n8n (try all possible extensions)
+    const extensions = ["pdf", "jpg", "jpeg", "png", "webp"];
+    let file_url   = "";
+    for (const ext of extensions) {
+      const objectName = `uploads/${job_id}/file.${ext}`;
+      try {
+        file_url = await getSignedUrl(objectName);
+        break;
+      } catch {
+        // try next extension
+      }
+    }
+    if (!file_url) {
+      res.status(404).json({ error: "Uploaded file not found in storage" });
+      return;
+    }
 
     // 3. Update PostgreSQL status
     await updateJobStatus(job_id, "processing", ocr, ai);
@@ -75,10 +91,11 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const message = err instanceof Error ? err.message : "Process trigger failed";
     logger.error("Process handler error", { job_id, message });
 
+    // Best-effort rollback to "failed"
     await updateJobStatus(job_id, "failed").catch(() => null);
     await setJobStatus(job_id, "failed").catch(() => null);
 
-    res.status(500).json({ error: "Invalid job_id or parameters" });
+    res.status(500).json({ error: "Processing failed. Please try again." });
   }
 });
 
