@@ -64,8 +64,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     // Pipe directly to MinIO, creating a Promise to await during 'finish'
     const uploadTask = uploadFile(objectName, stream, mimeType).catch(err => {
-      logger.error("MinIO upload stream error", { err: err instanceof Error ? err.message : String(err) });
-      throw new Error("File upload failed during streaming");
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error("MinIO upload stream error", { err: errMsg, job_id });
+      throw new Error(`File upload failed: ${errMsg}`);
     });
     
     uploadPromises.push(uploadTask);

@@ -82,7 +82,7 @@ async function init(): Promise<void> {
       return;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error("Startup init failed", { attempt, message });
+      logger.error("Startup init failed", { attempt, message, stack: err instanceof Error ? err.stack : undefined });
 
       if (attempt < MAX_INIT_RETRIES) {
         logger.info("Retrying init", { nextAttemptIn: `${INIT_RETRY_DELAY_MS}ms` });
