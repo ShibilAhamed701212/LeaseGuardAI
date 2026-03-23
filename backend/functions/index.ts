@@ -9,7 +9,6 @@ import statusRouter  from "./status";
 import resultRouter  from "./result";
 import cleanupRouter from "./cleanup";
 import { migrate, closePool }   from "./utils/postgresClient";
-import { ensureBucket }         from "./utils/minioClient";
 import { closeRedis }           from "./utils/redisClient";
 import { logger }               from "./utils/logger";
 
@@ -18,11 +17,14 @@ const PORT = parseInt(process.env.PORT ?? "5001", 10);
 
 // ── Middleware ─────────────────────────────────────────────────
 app.use(cors({ origin: true }));
+
+// ── Routes ─────────────────────────────────────────────────────
+// NOTE: /upload MUST come before express.json() to prevent stream consumption issues
+app.use("/upload",   uploadRouter);
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ── Routes ─────────────────────────────────────────────────────
-app.use("/upload",   uploadRouter);
 app.use("/process",  processRouter);
 app.use("/status",   statusRouter);
 app.use("/result",   resultRouter);
@@ -74,7 +76,7 @@ async function init(): Promise<void> {
     try {
       logger.info("Backend initializing", { attempt, maxRetries: MAX_INIT_RETRIES });
       await migrate();
-      await ensureBucket();
+      // Skip ensureBucket here — we'll verify storage lazily to avoid hangs on startup
       _initialized = true;
       logger.info("Backend initialized successfully");
       return;
