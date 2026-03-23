@@ -16,6 +16,7 @@ function getClient(): Redis {
     host: process.env.REDIS_HOST ?? "localhost",
     port: parseInt(process.env.REDIS_PORT ?? "6379", 10),
     password: process.env.REDIS_PASSWORD || undefined,
+    tls: process.env.REDIS_TLS === "true" ? {} : undefined,
     maxRetriesPerRequest: 3,
     retryStrategy(times: number) {
       // Exponential backoff: 200ms, 400ms, 800ms … capped at 5s

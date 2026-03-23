@@ -25,12 +25,16 @@ services:
         sync: false
       - key: PG_PASSWORD
         sync: false
+      - key: PG_SSL
+        value: "true"
       - key: REDIS_HOST
         sync: false
       - key: REDIS_PORT
         value: "6379"
       - key: REDIS_PASSWORD
         sync: false
+      - key: REDIS_TLS
+        value: "true"
       - key: MINIO_ENDPOINT
         sync: false
       - key: MINIO_PORT

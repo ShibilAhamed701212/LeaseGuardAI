@@ -31,6 +31,7 @@ function getPool(): Pool {
     database: process.env.PG_DATABASE ?? "ocr_agent",
     user: process.env.PG_USER,
     password: process.env.PG_PASSWORD,
+    ssl: process.env.PG_SSL === "true" ? { rejectUnauthorized: false } : false,
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
