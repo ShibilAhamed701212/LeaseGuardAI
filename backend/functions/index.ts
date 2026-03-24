@@ -1,4 +1,4 @@
-// index.ts — Advanced OCR Server with Super-Diagnostic dashboard
+// index.ts — OCR Server with Super-Diagnostics + Full API functionality
 import express from "express";
 import cors from "cors";
 import { logger } from "./utils/logger";
@@ -15,6 +15,14 @@ import {
   checkStorageHealth, 
   ensureBucket 
 } from "./utils/minioClient";
+
+// ── Route Handlers ────────────────────────────────────────────
+
+import { uploadHandler } from "./handlers/upload";
+import { statusHandler } from "./handlers/status";
+import { processHandler } from "./handlers/process";
+import { resultHandler } from "./handlers/result";
+import { cleanupHandler } from "./handlers/cleanup";
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -35,8 +43,6 @@ app.get("/health", async (_req, res) => {
     ]);
 
     const isOk = dbResult === true && redisResult === true && storageResult === true;
-
-    // Mask sensitive values for the report
     const maskEnd = (val: string | undefined) => val ? `${val.substring(0, 15)}...` : "missing";
 
     res.status(200).json({
@@ -76,6 +82,14 @@ app.get("/health", async (_req, res) => {
     res.status(500).json({ status: "error", error: err.message });
   }
 });
+
+// ── Actual API Routes ──────────────────────────────────────────
+
+app.post("/upload", uploadHandler);
+app.get("/status/:jobId", statusHandler);
+app.post("/process", processHandler);
+app.get("/result/:jobId", resultHandler);
+app.delete("/cleanup/:jobId", cleanupHandler);
 
 // ── Initialization Logic ──────────────────────────────────────
 
