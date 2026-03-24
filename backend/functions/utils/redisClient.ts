@@ -1,5 +1,4 @@
 // utils/redisClient.ts — Redis queue + cache service
-
 import Redis from "ioredis";
 import { logger } from "./logger";
 
@@ -12,26 +11,37 @@ let _client: Redis | null = null;
 function getClient(): Redis {
   if (_client) return _client;
 
-  _client = new Redis({
-    host: process.env.REDIS_HOST ?? "localhost",
-    port: parseInt(process.env.REDIS_PORT ?? "6379", 10),
-    username: "default", // Required for many cloud providers like Upstash
-    password: process.env.REDIS_PASSWORD || undefined,
-    tls: process.env.REDIS_TLS === "true" ? {} : undefined,
-    maxRetriesPerRequest: 3,
-    retryStrategy(times: number) {
-      // Exponential backoff: 200ms, 400ms, 800ms … capped at 5s
-      const delay = Math.min(times * 200, 5_000);
-      logger.warn("Redis reconnecting", { attempt: times, delayMs: delay });
-      return delay;
-    },
-    reconnectOnError(err: Error) {
-      // Only reconnect on connection-level errors, not command errors
-      const target = err.message;
-      return target.includes("READONLY") || target.includes("ECONNRESET");
-    },
-    lazyConnect: false, // connect immediately
-  });
+  const redisUrl = process.env.REDIS_URL;
+
+  if (redisUrl) {
+    logger.info("Connecting to Redis via REDIS_URL");
+    _client = new Redis(redisUrl, {
+      tls: redisUrl.startsWith("rediss://") ? { rejectUnauthorized: false } : undefined,
+      maxRetriesPerRequest: 3,
+      retryStrategy(times: number) {
+        return Math.min(times * 200, 5_000);
+      },
+      lazyConnect: false,
+    });
+  } else {
+    logger.info("Connecting to Redis via HOST/PORT");
+    _client = new Redis({
+      host: process.env.REDIS_HOST ?? "localhost",
+      port: parseInt(process.env.REDIS_PORT ?? "6379", 10),
+      username: "default",
+      password: process.env.REDIS_PASSWORD || undefined,
+      tls: process.env.REDIS_TLS === "true" ? { rejectUnauthorized: false } : undefined,
+      maxRetriesPerRequest: 3,
+      retryStrategy(times: number) {
+        return Math.min(times * 200, 5_000);
+      },
+      reconnectOnError(err: Error) {
+        const target = err.message;
+        return target.includes("READONLY") || target.includes("ECONNRESET");
+      },
+      lazyConnect: false,
+    });
+  }
 
   _client.on("error", (err) => {
     logger.error("Redis client error", { message: err.message });
@@ -73,7 +83,7 @@ export async function getResult(job_id: string): Promise<Record<string, unknown>
 
 // ── Key Management ────────────────────────────────────────────
 
-/** Delete all Redis keys for a job (uses SCAN instead of KEYS for safety) */
+/** Delete all Redis keys for a job */
 export async function deleteJobKeys(job_id: string): Promise<void> {
   const redis = getClient();
   const pattern = `ocr:*:${job_id}`;
@@ -96,7 +106,7 @@ export async function deleteJobKeys(job_id: string): Promise<void> {
 
 // ── Status Cache ──────────────────────────────────────────────
 
-/** Store job status in Redis (fast reads for polling) */
+/** Store job status in Redis */
 export async function setJobStatus(job_id: string, status: string): Promise<void> {
   const redis = getClient();
   await redis.set(`ocr:status:${job_id}`, status, "EX", RESULT_TTL);
