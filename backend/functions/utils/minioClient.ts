@@ -19,6 +19,7 @@ function getClient(): Minio.Client {
     useSSL: process.env.MINIO_USE_SSL === "true",
     accessKey: process.env.MINIO_ACCESS_KEY ?? "",
     secretKey: process.env.MINIO_SECRET_KEY ?? "",
+    region: "ap-northeast-1", // Match your Supabase region
   });
 
   return _client;
