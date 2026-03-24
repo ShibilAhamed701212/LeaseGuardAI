@@ -118,13 +118,14 @@ export async function closeRedis(): Promise<void> {
 }
 
 /** Check Redis health */
-export async function checkRedisHealth(): Promise<boolean> {
+export async function checkRedisHealth(): Promise<string | true> {
   try {
     const redis = getClient();
     await redis.ping();
     return true;
   } catch (err) {
-    logger.error("Redis health check failed", { error: err instanceof Error ? err.message : String(err) });
-    return false;
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error("Redis health check failed", { error: msg });
+    return msg;
   }
 }

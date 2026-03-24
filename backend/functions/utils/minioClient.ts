@@ -111,13 +111,14 @@ export async function deleteFile(objectName: string): Promise<void> {
 }
 
 /** Check S3 health */
-export async function checkStorageHealth(): Promise<boolean> {
+export async function checkStorageHealth(): Promise<string | true> {
   try {
     const client = getClient();
     await client.send(new HeadBucketCommand({ Bucket: BUCKET }));
     return true;
-  } catch (err) {
-    logger.error("Storage health check failed", { error: err instanceof Error ? err.message : String(err) });
-    return false;
+  } catch (err: any) {
+    const msg = err.message || (err.name ? `${err.name}: ${err.$metadata?.httpStatusCode || ""}` : String(err));
+    logger.error("Storage health check failed", { error: msg });
+    return msg;
   }
 }

@@ -42,20 +42,12 @@ app.get("/health", async (req, res) => {
       }
     })(),
     (async () => {
-      try {
-        const ok = await checkRedisHealth();
-        return ok ? { ok: true } : { ok: false, err: "Ping failed" };
-      } catch (e: any) {
-        return { ok: false, err: e.message };
-      }
+      const result = await checkRedisHealth();
+      return result === true ? { ok: true } : { ok: false, err: result };
     })(),
     (async () => {
-      try {
-        const ok = await checkStorageHealth();
-        return ok ? { ok: true } : { ok: false, err: "Bucket check failed" };
-      } catch (e: any) {
-        return { ok: false, err: e.message };
-      }
+      const result = await checkStorageHealth();
+      return result === true ? { ok: true } : { ok: false, err: result };
     })()
   ]);
 
