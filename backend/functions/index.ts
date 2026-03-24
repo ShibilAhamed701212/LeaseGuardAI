@@ -92,6 +92,7 @@ app.use("/result", resultHandler);
 app.use("/cleanup", cleanupHandler);
 
 // ── Initialization Logic ──────────────────────────────────────
+import { startWorker } from "./worker";
 
 async function startServer() {
   try {
@@ -103,7 +104,10 @@ async function startServer() {
     // 2. Storage
     await ensureBucket();
 
-    // 3. Start Listening
+    // 3. Start Background Worker
+    startWorker();
+
+    // 4. Start Listening
     app.listen(port, () => {
       logger.info(`Server listening on port ${port}`);
     });

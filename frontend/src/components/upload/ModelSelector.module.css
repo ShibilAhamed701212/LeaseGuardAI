@@ -6,3 +6,26 @@
 .chip:hover:not(:disabled){border-color:var(--accent);color:var(--text)}
 .chip:disabled{opacity:0.4;cursor:not-allowed}
 .active{background:var(--accent);color:#fff !important;border-color:var(--accent) !important}
+
+.customConfig {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.inputField {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-bright);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-family: var(--font-primary);
+  font-size: 0.9rem;
+  transition: border-color var(--transition);
+}
+
+.inputField:focus {
+  outline: none;
+  border-color: var(--accent);
+}

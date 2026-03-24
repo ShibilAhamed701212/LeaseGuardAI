@@ -10,19 +10,26 @@ import { logger } from "../utils/logger";
 const router = express.Router();
 
 const VALID_OCR = ["tesseract", "paddle"] as const;
-const VALID_AI  = ["ollama", "openai", "claude"] as const;
+const VALID_AI  = ["ollama", "gemini", "custom"] as const;
 
 type OcrEngine = (typeof VALID_OCR)[number];
 type AiModel   = (typeof VALID_AI)[number];
+
+interface AiConfig {
+  apiKey?: string;
+  baseUrl?: string;
+  modelName?: string;
+}
 
 interface ProcessBody {
   job_id: string;
   ocr:    OcrEngine;
   ai:     AiModel;
+  config?: AiConfig;
 }
 
 router.post("/", async (req: Request, res: Response): Promise<void> => {
-  const { job_id, ocr, ai } = req.body as ProcessBody;
+  const { job_id, ocr, ai, config } = req.body as ProcessBody;
 
   // ── Input validation ───────────────────────────────────────
   if (!job_id || typeof job_id !== "string") {
@@ -78,10 +85,10 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     await setJobStatus(job_id, "processing");
 
     // 5. Push to Redis queue
-    await pushJob(job_id, { ocr, ai, file_url });
+    await pushJob(job_id, { ocr, ai, file_url, config });
 
     // 6. Trigger n8n webhook
-    await triggerN8nWebhook({ job_id, file_url, ocr, ai });
+    await triggerN8nWebhook({ job_id, file_url, ocr, ai, config });
 
     logger.info("Processing triggered", { job_id, ocr, ai });
 

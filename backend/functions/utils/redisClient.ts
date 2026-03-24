@@ -8,7 +8,7 @@ const RESULT_TTL = parseInt(process.env.REDIS_RESULT_TTL_SECONDS ?? "86400", 10)
 
 let _client: Redis | null = null;
 
-function getClient(): Redis {
+export function getClient(): Redis {
   if (_client) return _client;
 
   const redisUrl = process.env.REDIS_URL;

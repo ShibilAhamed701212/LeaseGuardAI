@@ -8,6 +8,7 @@ export interface N8nJobPayload {
   file_url: string;
   ocr:      string;
   ai:       string;
+  config?:  any;
 }
 
 const MAX_RETRIES = 2;

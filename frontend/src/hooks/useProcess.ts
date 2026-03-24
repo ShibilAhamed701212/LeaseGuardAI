@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef } from "react";
 import { processDocument, getStatus, type JobStatus } from "../services/api";
 import { friendlyError } from "../utils/helpers";
+import type { AiConfig } from "../components/upload/ModelSelector";
 
 interface UseProcessReturn {
-  trigger:  (job_id: string, ocr: string, ai: string) => Promise<void>;
+  trigger:  (job_id: string, ocr: string, ai: string, config?: AiConfig) => Promise<void>;
   status:   JobStatus | null;
   loading:  boolean;
   error:    string | null;
@@ -22,11 +23,11 @@ export function useProcess(onComplete: () => void): UseProcessReturn {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
   };
 
-  const trigger = useCallback(async (job_id: string, ocr: string, ai: string) => {
+  const trigger = useCallback(async (job_id: string, ocr: string, ai: string, config?: AiConfig) => {
     setLoading(true);
     setError(null);
     try {
-      await processDocument(job_id, ocr, ai);
+      await processDocument(job_id, ocr, ai, config);
       setStatus("processing");
       let polls = 0;
       timer.current = setInterval(async () => {
