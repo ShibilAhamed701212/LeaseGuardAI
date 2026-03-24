@@ -22,7 +22,10 @@ export async function triggerN8nWebhook(payload: N8nJobPayload): Promise<void> {
   const url    = process.env.N8N_WEBHOOK_URL ?? "";
   const secret = process.env.N8N_SECRET     ?? "";
 
-  if (!url) throw new Error("N8N_WEBHOOK_URL is not configured");
+  if (!url) {
+    logger.warn("N8N_WEBHOOK_URL is not configured. Skipping webhook trigger.");
+    return;
+  }
 
   let lastError: Error | null = null;
 
