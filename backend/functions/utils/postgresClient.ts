@@ -142,13 +142,14 @@ export async function closePool(): Promise<void> {
 }
 
 /** Check DB health */
-export async function checkDBHealth(): Promise<boolean> {
+export async function checkDBHealth(): Promise<string | true> {
   try {
     const pool = getPool();
     await pool.query("SELECT 1");
     return true;
-  } catch (err) {
-    logger.error("DB health check failed", { error: err instanceof Error ? err.message : String(err) });
-    return false;
+  } catch (err: any) {
+    const msg = err.message || String(err);
+    logger.error("DB health check failed", { error: msg });
+    return msg;
   }
 }
