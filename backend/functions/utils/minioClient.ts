@@ -1,4 +1,4 @@
-// utils/minioClient.ts — Cloud S3 service (Replacing Minio with AWS SDK)
+// utils/minioClient.ts — Final Cloud S3 service
 
 import { 
   S3Client, 
@@ -22,21 +22,24 @@ let _client: S3Client | null = null;
 function getClient(): S3Client {
   if (_client) return _client;
 
-  const endpoint = process.env.MINIO_ENDPOINT;
+  let endpoint = process.env.MINIO_ENDPOINT ?? "localhost";
+  // Clean up endpoint: remove protocol if user added it, then ensure our protocol is used
+  endpoint = endpoint.replace(/^https?:\/\//, "");
+  
   const useSSL = process.env.MINIO_USE_SSL === "true";
   const protocol = useSSL ? "https://" : "http://";
-  
-  // Format endpoint for AWS SDK: must start with https://
-  const finalEndpoint = endpoint?.startsWith("http") ? endpoint : `${protocol}${endpoint}`;
+  const finalEndpoint = `${protocol}${endpoint}`;
+
+  logger.info("Connecting to S3", { endpoint: finalEndpoint, bucket: BUCKET });
 
   _client = new S3Client({
     endpoint: finalEndpoint,
-    region: "ap-northeast-1", // Match your Supabase region
+    region: "us-east-1", // Standard default for most S3-compatible endpoints
     credentials: {
       accessKeyId: process.env.MINIO_ACCESS_KEY ?? "",
       secretAccessKey: process.env.MINIO_SECRET_KEY ?? "",
     },
-    forcePathStyle: true, // Crucial for Supabase/MinIO
+    forcePathStyle: true, // Absolutely required for Supabase/MinIO
   });
 
   return _client;
@@ -44,19 +47,20 @@ function getClient(): S3Client {
 
 // ── Bucket Setup ───────────────────────────────────────────────
 
-/** Ensure bucket exists — only call once if needed */
+/** Ensure bucket exists */
 export async function ensureBucket(): Promise<void> {
   const client = getClient();
   try {
     await client.send(new HeadBucketCommand({ Bucket: BUCKET }));
     logger.info("S3 bucket verified", { bucket: BUCKET });
   } catch (err: any) {
-    if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
+    logger.warn("S3 bucket auto-check failed, attempting creation...", { error: err.message });
+    try {
       await client.send(new CreateBucketCommand({ Bucket: BUCKET }));
       logger.info("S3 bucket created", { bucket: BUCKET });
-    } else {
-      logger.error("S3 bucket check failed", { error: err.message });
-      throw err;
+    } catch (createErr: any) {
+      logger.error("S3 bucket creation failed", { error: createErr.message });
+      throw createErr;
     }
   }
 }
@@ -72,9 +76,6 @@ export async function uploadFile(
 ): Promise<void> {
   const client = getClient();
   
-  // Convert stream to Buffer if necessary for S3 SDK or pass directly if it's a stream
-  // For Supabase/S3, direct streaming from Busboy works if you provide Body as the stream.
-  
   const command = new PutObjectCommand({
     Bucket: BUCKET,
     Key: objectName,
@@ -89,9 +90,6 @@ export async function uploadFile(
 /** Generate a pre-signed GET URL (temporary access) */
 export async function getSignedUrl(objectName: string): Promise<string> {
   const client = getClient();
-  
-  // Verify object exists before generating URL
-  await client.send(new HeadObjectCommand({ Bucket: BUCKET, Key: objectName }));
   
   const command = new GetObjectCommand({
     Bucket: BUCKET,
@@ -114,11 +112,11 @@ export async function deleteFile(objectName: string): Promise<void> {
 export async function checkStorageHealth(): Promise<string | true> {
   try {
     const client = getClient();
+    // A simple HEAD bucket check
     await client.send(new HeadBucketCommand({ Bucket: BUCKET }));
     return true;
   } catch (err: any) {
     const msg = err.message || (err.name ? `${err.name}: ${err.$metadata?.httpStatusCode || ""}` : String(err));
-    logger.error("Storage health check failed", { error: msg });
     return msg;
   }
 }
