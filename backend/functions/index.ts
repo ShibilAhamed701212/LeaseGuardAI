@@ -108,8 +108,8 @@ async function startServer() {
     startWorker();
 
     // 4. Start Listening
-    app.listen(port, () => {
-      logger.info(`Server listening on port ${port}`);
+    app.listen(Number(port), "0.0.0.0", () => {
+      logger.info(`Server listening on port ${port} bound to 0.0.0.0`);
     });
 
   } catch (err: any) {
