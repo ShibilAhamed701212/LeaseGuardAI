@@ -71,6 +71,18 @@ const MAX_INIT_RETRIES = 3;
 const INIT_RETRY_DELAY_MS = 2000;
 
 async function init(): Promise<void> {
+  // Debug log (masked for security)
+  logger.info("Initializing with config:", {
+    PG_HOST: process.env.PG_HOST,
+    PG_USER: process.env.PG_USER,
+    PG_SSL: process.env.PG_SSL,
+    REDIS_HOST: process.env.REDIS_HOST,
+    REDIS_TLS: process.env.REDIS_TLS,
+    MINIO_ENDPOINT: process.env.MINIO_ENDPOINT,
+    MINIO_BUCKET: process.env.MINIO_BUCKET,
+    MINIO_USE_SSL: process.env.MINIO_USE_SSL,
+  });
+
   for (let attempt = 1; attempt <= MAX_INIT_RETRIES; attempt++) {
     try {
       logger.info("Backend initializing", { attempt, maxRetries: MAX_INIT_RETRIES });
