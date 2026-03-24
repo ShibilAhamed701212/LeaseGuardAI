@@ -996,9 +996,9 @@ async function startServer() {
     logger.info("Initializing OCR Cloud Stack...");
     await migrate();
     await ensureBucket();
-    startWorker();
-    app.listen(port, () => {
-      logger.info(`Server listening on port ${port}`);
+    app.listen(Number(port), "0.0.0.0", () => {
+      logger.info(`Server listening on port ${port} bound to 0.0.0.0`);
+      startWorker();
     });
   } catch (err) {
     logger.error("Startup partial failure", { error: err.message });

@@ -104,12 +104,12 @@ async function startServer() {
     // 2. Storage
     await ensureBucket();
 
-    // 3. Start Background Worker
-    startWorker();
-
-    // 4. Start Listening
+    // 3. Start Listening
     app.listen(Number(port), "0.0.0.0", () => {
       logger.info(`Server listening on port ${port} bound to 0.0.0.0`);
+      
+      // 4. Start Background Worker (after port is open)
+      startWorker();
     });
 
   } catch (err: any) {
