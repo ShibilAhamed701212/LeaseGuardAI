@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import { logger } from "./utils/logger";
 import { 
-  checkDatabaseHealth, 
+  checkDBHealth as checkDatabaseHealth, 
   migrate, 
   getPool 
 } from "./utils/postgresClient";
@@ -27,7 +27,6 @@ app.use(express.json());
 // ── Super-Diagnostic Health Check ───────────────────────────
 
 app.get("/health", async (_req, res) => {
-  // Parallel check for performance
   try {
     const [dbResult, redisResult, storageResult] = await Promise.all([
       checkDatabaseHealth(),
@@ -38,7 +37,6 @@ app.get("/health", async (_req, res) => {
     const isOk = dbResult === true && redisResult === true && storageResult === true;
 
     // Mask sensitive values for the report
-    const mask = (val: string | undefined) => val ? `${val.substring(0, 4)}...` : "missing";
     const maskEnd = (val: string | undefined) => val ? `${val.substring(0, 15)}...` : "missing";
 
     res.status(200).json({
@@ -98,8 +96,6 @@ async function startServer() {
 
   } catch (err: any) {
     logger.error("Startup partial failure", { error: err.message });
-    // In production, we don't necessarily want to exit(1) immediately on first failure 
-    // to allow Render's health checks to provide diagnostic output.
     app.listen(port, () => {
       logger.warn("Server started in diagnostic mode", { port });
     });
