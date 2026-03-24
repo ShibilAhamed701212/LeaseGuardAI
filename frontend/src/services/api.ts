@@ -1,4 +1,4 @@
-﻿const BASE=import.meta.env.VITE_API_BASE_URL as string
+const BASE=import.meta.env.VITE_API_BASE_URL as string
 export type JobStatus='uploaded'|'processing'|'completed'|'failed'|'deleted'
 export interface UploadResponse{job_id:string;status:'uploaded'}
 export interface ProcessResponse{job_id:string;status:'processing'}
@@ -11,7 +11,7 @@ interface RawResult{job_id:string;status:'completed';data:ResultData}
 export interface ResultPayload extends ResultData{job_id:string}
 export interface CleanupResponse{job_id:string;status:'deleted'}
 async function req<T>(path:string,init?:RequestInit):Promise<T>{const r=await fetch(BASE+path,{headers:{'Content-Type':'application/json'},...init});if(!r.ok)throw new Error(await r.text().catch(()=>'HTTP '+r.status));return r.json()}
-export async function uploadFile(file:File,user_id='anonymous'):Promise<UploadResponse>{const f=new FormData();f.append('file',file);f.append('user_id',user_id);const r=await fetch(BASE+'/upload',{method:'POST',body:f});if(!r.ok)throw new Error('Upload failed');return r.json()}
+export async function uploadFile(file:File,user_id='anonymous'):Promise<UploadResponse>{const f=new FormData();f.append('file',file);f.append('user_id',user_id);const r=await fetch(BASE+'/upload',{method:'POST',body:f});if(!r.ok){const msg=await r.text().catch(()=>'Unknown error');throw new Error(`Upload failed: ${msg}`)}return r.json()}
 export const processDocument=(job_id:string,ocr:string,ai:string)=>req<ProcessResponse>('/process',{method:'POST',body:JSON.stringify({job_id,ocr,ai})})
 export const getStatus=(job_id:string)=>req<StatusResponse>('/status/'+job_id)
 export async function getResult(job_id:string):Promise<ResultPayload>{const r=await req<RawResult>('/result/'+job_id);return{job_id:r.job_id,...r.data}}

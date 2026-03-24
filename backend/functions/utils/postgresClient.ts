@@ -140,3 +140,15 @@ export async function closePool(): Promise<void> {
     logger.info("PG pool closed");
   }
 }
+
+/** Check DB health */
+export async function checkDBHealth(): Promise<boolean> {
+  try {
+    const pool = getPool();
+    await pool.query("SELECT 1");
+    return true;
+  } catch (err) {
+    logger.error("DB health check failed", { error: err instanceof Error ? err.message : String(err) });
+    return false;
+  }
+}
