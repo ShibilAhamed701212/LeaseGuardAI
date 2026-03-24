@@ -4,10 +4,9 @@
   "private": true,
   "main": "lib/index.js",
   "scripts": {
-    "build": "node_modules/.bin/tsc",
+    "build": "node_modules/.bin/esbuild functions/index.ts --bundle --platform=node --target=node18 --outfile=lib/index.js",
     "start": "node lib/index.js",
-    "dev": "npm run build && node lib/index.js",
-    "postinstall": "ls node_modules/.bin/tsc || echo 'TSC missing'"
+    "dev": "npm run build && node lib/index.js"
   },
   "engines": {
     "node": "18"
@@ -22,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.541.0",
     "pg": "^8.11.3",
     "uuid": "^9.0.0",
+    "esbuild": "^0.20.0",
     "typescript": "^5.3.0",
     "@types/node": "^20.0.0",
     "@types/pg": "^8.11.2",
