@@ -4,7 +4,7 @@
   "private": true,
   "main": "lib/index.js",
   "scripts": {
-    "build": "node_modules/.bin/esbuild functions/index.ts --bundle --platform=node --target=node18 --packages=external --outfile=lib/index.js",
+    "build": "npx esbuild functions/index.ts --bundle --platform=node --target=node18 --packages=external --outfile=lib/index.js",
     "start": "node lib/index.js",
     "dev": "npm run build && node lib/index.js"
   },
