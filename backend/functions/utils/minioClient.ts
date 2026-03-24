@@ -1,4 +1,4 @@
-// utils/minioClient.ts — Final Cloud S3 service
+// utils/minioClient.ts — Standard S3 service with path-aware endpoint
 
 import { 
   S3Client, 
@@ -22,24 +22,28 @@ let _client: S3Client | null = null;
 function getClient(): S3Client {
   if (_client) return _client;
 
-  let endpoint = process.env.MINIO_ENDPOINT ?? "localhost";
-  // Clean up endpoint: remove protocol if user added it, then ensure our protocol is used
-  endpoint = endpoint.replace(/^https?:\/\//, "");
+  let endpointFromEnv = process.env.MINIO_ENDPOINT ?? "";
   
-  const useSSL = process.env.MINIO_USE_SSL === "true";
-  const protocol = useSSL ? "https://" : "http://";
-  const finalEndpoint = `${protocol}${endpoint}`;
+  // Use HTTPS by default for all cloud services unless explicitly disabled
+  const protocol = process.env.MINIO_USE_SSL === "false" ? "http://" : "https://";
+  
+  // Assemble the final endpoint carefully: 
+  // If the user provided a full path (like /storage/v1/s3), ensure it starts with protocol.
+  let finalEndpoint = endpointFromEnv;
+  if (!finalEndpoint.startsWith("http")) {
+    finalEndpoint = `${protocol}${finalEndpoint}`;
+  }
 
-  logger.info("Connecting to S3", { endpoint: finalEndpoint, bucket: BUCKET });
+  logger.info("Initializing S3 client", { endpoint: finalEndpoint, bucket: BUCKET });
 
   _client = new S3Client({
     endpoint: finalEndpoint,
-    region: "us-east-1", // Standard default for most S3-compatible endpoints
+    region: "ap-northeast-1", // Match your project region (was 'us-east-1' in some defaults)
     credentials: {
       accessKeyId: process.env.MINIO_ACCESS_KEY ?? "",
       secretAccessKey: process.env.MINIO_SECRET_KEY ?? "",
     },
-    forcePathStyle: true, // Absolutely required for Supabase/MinIO
+    forcePathStyle: true, // Crucial for Supabase and Minio
   });
 
   return _client;
@@ -87,7 +91,7 @@ export async function uploadFile(
   logger.info("File uploaded to S3", { objectName });
 }
 
-/** Generate a pre-signed GET URL (temporary access) */
+/** Generate a pre-signed GET URL */
 export async function getSignedUrl(objectName: string): Promise<string> {
   const client = getClient();
   
@@ -112,10 +116,10 @@ export async function deleteFile(objectName: string): Promise<void> {
 export async function checkStorageHealth(): Promise<string | true> {
   try {
     const client = getClient();
-    // A simple HEAD bucket check
     await client.send(new HeadBucketCommand({ Bucket: BUCKET }));
     return true;
   } catch (err: any) {
+    // Reveal technical code or message for diagnostics
     const msg = err.message || (err.name ? `${err.name}: ${err.$metadata?.httpStatusCode || ""}` : String(err));
     return msg;
   }
