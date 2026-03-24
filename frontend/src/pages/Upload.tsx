@@ -15,7 +15,7 @@ export function Upload() {
   const [file,  setFile]  = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [ocr,   setOcr]   = useState<OcrEngine>("google_cloud");
-  const [ai,    setAi]    = useState<AiModel>("ollama");
+  const [ai,    setAi]    = useState<AiModel>("gemini");
   const [config, setConfig] = useState<AiConfig>({});
   const [step,  setStep]  = useState("idle");
 

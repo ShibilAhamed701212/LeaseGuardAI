@@ -43,7 +43,7 @@ export function ModelSelector({ ocr, ai, config, onOcr, onAi, onConfigChange, di
           {AI_MODELS.map((m) => (
             <button key={m} disabled={disabled} type="button"
               className={`${styles.chip} ${ai === m ? styles.active : ""}`}
-              onClick={() => onAi(m)}>{m === 'ollama' ? 'Local Ollama (Llama 3.2)' : m === 'gemini' ? 'Google Cloud (Gemini 1.5 Flash)' : 'Custom AI Node'}</button>
+              onClick={() => onAi(m)}>{m === 'ollama' ? 'Local PC Ollama (Llama 3.2)' : m === 'gemini' ? 'Gemini 1.5 Flash (Cloud Free)' : 'Custom AI Node'}</button>
           ))}
         </div>
       </div>
