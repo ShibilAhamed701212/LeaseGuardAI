@@ -1,77 +1,57 @@
-// index.ts — Standalone Express server for Render deployment
+// index.ts — OCR Server with full cloud-native health check
 import express from "express";
 import cors from "cors";
-import uploadRouter from "./upload";
-import processRouter from "./process";
-import statusRouter from "./status";
-import resultRouter from "./result";
-import cleanupRouter from "./cleanup";
-import { migrate, closePool, getPool } from "./utils/postgresClient";
-import { checkStorageHealth } from "./utils/minioClient";
-import { checkRedisHealth } from "./utils/redisClient";
 import { logger } from "./utils/logger";
+import { 
+  checkDatabaseHealth, 
+  migrate, 
+  getPool 
+} from "./utils/postgresClient";
+import { 
+  checkRedisHealth, 
+  closeRedis 
+} from "./utils/redisClient";
+import { 
+  checkStorageHealth, 
+  ensureBucket 
+} from "./utils/minioClient";
 
 const app = express();
-const PORT = parseInt(process.env.PORT ?? "5001", 10);
+const port = process.env.PORT || 10000;
 
-// ── Middleware ─────────────────────────────────────────────────
-app.use(cors({ origin: true }));
+// ── Basic Middleware ──────────────────────────────────────────
 
-// ── Routes ─────────────────────────────────────────────────────
-// NOTE: /upload MUST come before express.json() to prevent stream consumption issues
-app.use("/upload", uploadRouter);
+app.use(cors());
+app.use(express.json());
 
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true }));
+// ── Diagnostics & Health ────────────────────────────────────
 
-app.use("/process", processRouter);
-app.use("/status", statusRouter);
-app.use("/result", resultRouter);
-app.use("/cleanup", cleanupRouter);
-
-// ── Enhanced Health Check ──────────────────────────────────────
-app.get("/health", async (req, res) => {
+app.get("/health", async (_req, res) => {
+  // Use Promise.all to check all three services in parallel
   const [dbStatus, redisStatus, storageStatus] = await Promise.all([
-    (async () => {
-      try {
-        const p = getPool();
-        await p.query("SELECT 1");
-        return { ok: true };
-      } catch (e: any) {
-        return { ok: false, err: e.message };
-      }
-    })(),
-    (async () => {
-      const result = await checkRedisHealth();
-      return result === true ? { ok: true } : { ok: false, err: result };
-    })(),
-    (async () => {
-      const result = await checkStorageHealth();
-      return result === true ? { ok: true } : { ok: false, err: result };
-    })()
+    checkDatabaseHealth(),
+    checkRedisHealth(),
+    checkStorageHealth()
   ]);
 
-  const allOk = dbStatus.ok && redisStatus.ok && storageStatus.ok;
+  const isOk = dbStatus === true && redisStatus === true && storageStatus === true;
 
-  // Set the HTTP status to 200 even if degraded so the frontend can read the JSON error body
+  // Always return 200 so the frontend can read the diagnostic JSON body
   res.status(200).json({
-    status: allOk ? "ok" : "degraded",
+    status: isOk ? "ok" : "degraded",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     services: {
-      database: dbStatus.ok ? "connected" : dbStatus.err,
-      redis: redisStatus.ok ? "connected" : (redisStatus.err === "error" ? "Connection failed (Check REDIS_TLS)" : redisStatus.err),
-      storage: storageStatus.ok ? "connected" : (storageStatus.err === "error" ? "S3 hand-shake failed (Check MINIO_ENDPOINT & REGION)" : storageStatus.err)
+      database: dbStatus === true ? "connected" : dbStatus,
+      redis: redisStatus === true ? "connected" : redisStatus,
+      storage: storageStatus === true ? "connected" : storageStatus
     }
   });
 });
 
 // ── Initialization Logic ──────────────────────────────────────
-const MAX_INIT_RETRIES = 3;
-const INIT_RETRY_DELAY_MS = 2000;
 
-async function init(): Promise<void> {
-  // Debug log (masked for security)
+async function startServer() {
   logger.info("Initializing with config:", {
     PG_HOST: process.env.PG_HOST,
     PG_USER: process.env.PG_USER,
@@ -83,37 +63,40 @@ async function init(): Promise<void> {
     MINIO_USE_SSL: process.env.MINIO_USE_SSL,
   });
 
-  for (let attempt = 1; attempt <= MAX_INIT_RETRIES; attempt++) {
-    try {
-      logger.info("Backend initializing", { attempt, maxRetries: MAX_INIT_RETRIES });
-      await migrate();
-      logger.info("Backend initialized successfully");
-      return;
-    } catch (err: any) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("Startup init failed", { attempt, message, stack: err.stack });
+  try {
+    logger.info("Backend initializing", { attempt: 1, maxRetries: 3 });
 
-      if (attempt < MAX_INIT_RETRIES) {
-        logger.info("Retrying init", { nextAttemptIn: `${INIT_RETRY_DELAY_MS}ms` });
-        await new Promise(resolve => setTimeout(resolve, INIT_RETRY_DELAY_MS));
-      }
-    }
+    // 1. Database
+    await migrate();
+
+    // 2. Storage
+    await ensureBucket();
+
+    // 3. Start Listening
+    app.listen(port, () => {
+      logger.info(`Server listening on port ${port}`);
+      logger.info("Backend initialized successfully");
+    });
+
+  } catch (err: any) {
+    logger.error("Startup init failed", { error: err.message });
+    // In production, we don't necessarily want to exit(1) immediately on first failure 
+    // to allow Render's health checks to provide diagnostic output.
+    app.listen(port, () => {
+      logger.warn("Server started in DEGRADED mode for diagnostics", { port });
+    });
   }
-  logger.error("All init retries exhausted — backend starting in degraded mode");
 }
 
-// ── Bootstrap ─────────────────────────────────────────────────
-app.listen(PORT, "0.0.0.0", () => {
-  logger.info(`Server listening on port ${PORT}`);
-  init();
+// ── Shutdown Logic ────────────────────────────────────────────
+
+process.on("SIGTERM", async () => {
+  logger.info("Shutting down gracefully...");
+  await closeRedis();
+  const pool = getPool();
+  if (pool) await pool.end();
+  process.exit(0);
 });
 
-// ── Graceful Shutdown ─────────────────────────────────────────
-async function shutdown() {
-  logger.info("Shutting down...");
-  await closePool();
-  process.exit(0);
-}
-
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+// Run!
+startServer();
