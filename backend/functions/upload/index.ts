@@ -69,11 +69,33 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const ext = filename.split(".").pop() ?? "bin";
     const objectName = `uploads/${job_id}/file.${ext}`;
 
+    // Read the entire stream into a Buffer
+    const chunks: Buffer[] = [];
+    
+    stream.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
+
     // Pipe directly to MinIO, creating a Promise to await during 'finish'
-    const uploadTask = uploadFile(objectName, stream, mimeType).catch(err => {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logger.error("MinIO upload stream error", { err: errMsg, job_id });
-      throw new Error(`File upload failed: ${errMsg}`);
+    const uploadTask = new Promise<void>((resolve, reject) => {
+      stream.on("end", async () => {
+        if (isAborted) {
+          resolve();
+          return;
+        }
+        try {
+          const fileBuffer = Buffer.concat(chunks);
+          await uploadFile(objectName, fileBuffer, mimeType);
+          resolve();
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          logger.error("MinIO upload stream error", { err: errMsg, job_id });
+          reject(new Error(`File upload failed: ${errMsg}`));
+        }
+      });
+      stream.on("error", (err) => {
+        reject(err);
+      });
     });
     
     uploadPromises.push(uploadTask);
