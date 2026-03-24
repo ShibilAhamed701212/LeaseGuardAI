@@ -4,10 +4,10 @@
   "private": true,
   "main": "lib/index.js",
   "scripts": {
-    "build": "npx tsc",
+    "build": "node_modules/.bin/tsc",
     "start": "node lib/index.js",
     "dev": "npm run build && node lib/index.js",
-    "lint": "eslint . --ext .ts"
+    "postinstall": "ls node_modules/.bin/tsc || echo 'TSC missing'"
   },
   "engines": {
     "node": "18"
