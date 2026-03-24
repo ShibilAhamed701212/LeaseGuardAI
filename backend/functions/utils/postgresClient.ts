@@ -18,7 +18,7 @@ export interface JobRecord {
 
 let _pool: Pool | null = null;
 
-function getPool(): Pool {
+export function getPool(): Pool {
   if (_pool) return _pool;
 
   const config = {

@@ -61,14 +61,15 @@ app.get("/health", async (req, res) => {
 
   const allOk = dbStatus.ok && redisStatus.ok && storageStatus.ok;
 
+  // Set the HTTP status to 200 even if degraded so the frontend can read the JSON error body
   res.status(200).json({
     status: allOk ? "ok" : "degraded",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     services: {
       database: dbStatus.ok ? "connected" : dbStatus.err,
-      redis: redisStatus.ok ? "connected" : redisStatus.err,
-      storage: storageStatus.ok ? "connected" : storageStatus.err
+      redis: redisStatus.ok ? "connected" : (redisStatus.err === "error" ? "Connection failed (Check REDIS_TLS)" : redisStatus.err),
+      storage: storageStatus.ok ? "connected" : (storageStatus.err === "error" ? "S3 hand-shake failed (Check MINIO_ENDPOINT & REGION)" : storageStatus.err)
     }
   });
 });
