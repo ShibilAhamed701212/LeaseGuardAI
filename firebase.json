@@ -11,10 +11,5 @@
         "headers": [{ "key": "Cache-Control", "value": "max-age=31536000" }]
       }
     ]
-  },
-  "functions": {
-    "source": "backend",
-    "runtime": "nodejs18",
-    "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log"]
   }
 }
