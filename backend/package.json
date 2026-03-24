@@ -4,7 +4,7 @@
   "private": true,
   "main": "lib/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "npx tsc",
     "start": "node lib/index.js",
     "dev": "npm run build && node lib/index.js",
     "lint": "eslint . --ext .ts"
