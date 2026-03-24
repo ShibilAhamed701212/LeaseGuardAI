@@ -1,4 +1,4 @@
-// index.ts — OCR Server with full cloud-native health check
+// index.ts — Advanced OCR Server with Super-Diagnostic dashboard
 import express from "express";
 import cors from "cors";
 import { logger } from "./utils/logger";
@@ -24,10 +24,10 @@ const port = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-// ── Diagnostics & Health ────────────────────────────────────
+// ── Super-Diagnostic Health Check ───────────────────────────
 
 app.get("/health", async (_req, res) => {
-  // Use Promise.all to check all three services in parallel
+  // Parallel check for performance
   const [dbStatus, redisStatus, storageStatus] = await Promise.all([
     checkDatabaseHealth(),
     checkRedisHealth(),
@@ -36,67 +36,79 @@ app.get("/health", async (_req, res) => {
 
   const isOk = dbStatus === true && redisStatus === true && storageStatus === true;
 
-  // Always return 200 so the frontend can read the diagnostic JSON body
+  // Mask sensitive values for the report
+  const mask = (val: string | undefined) => val ? `${val.substring(0, 4)}...${val.substring(val.length - 4)}` : "missing";
+  const maskEnd = (val: string | undefined) => val ? `${val.substring(0, 15)}...` : "missing";
+
   res.status(200).json({
     status: isOk ? "ok" : "degraded",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
+    server: {
+      uptime: process.uptime(),
+      time: new Date().toISOString(),
+      platform: process.platform,
+      node: process.version
+    },
     services: {
-      database: dbStatus === true ? "connected" : dbStatus,
-      redis: redisStatus === true ? "connected" : redisStatus,
-      storage: storageStatus === true ? "connected" : storageStatus
+      database: {
+        status: dbStatus === true ? "connected" : "failed",
+        error: dbStatus === true ? null : dbStatus,
+        config: { host: maskEnd(process.env.PG_HOST), user: process.env.PG_USER }
+      },
+      redis: {
+        status: redisStatus === true ? "connected" : "failed",
+        error: redisStatus === true ? null : redisStatus,
+        config: { 
+          source: process.env.REDIS_URL ? "REDIS_URL" : "HOST/PORT",
+          host: process.env.REDIS_URL ? maskEnd(process.env.REDIS_URL) : maskEnd(process.env.REDIS_HOST)
+        }
+      },
+      storage: {
+        status: storageStatus === true ? "connected" : "failed",
+        error: storageStatus === true ? null : storageStatus,
+        config: { 
+          endpoint: maskEnd(process.env.MINIO_ENDPOINT),
+          bucket: process.env.MINIO_BUCKET,
+          ssl: process.env.MINIO_USE_SSL
+        }
+      }
     }
   });
 });
 
-// ── Initialization Logic ──────────────────────────────────────
+// ── Initialization ────────────────────────────────────────────
 
 async function startServer() {
-  logger.info("Initializing with config:", {
-    PG_HOST: process.env.PG_HOST,
-    PG_USER: process.env.PG_USER,
-    PG_SSL: process.env.PG_SSL,
-    REDIS_HOST: process.env.REDIS_HOST,
-    REDIS_TLS: process.env.REDIS_TLS,
-    MINIO_ENDPOINT: process.env.MINIO_ENDPOINT,
-    MINIO_BUCKET: process.env.MINIO_BUCKET,
-    MINIO_USE_SSL: process.env.MINIO_USE_SSL,
-  });
-
   try {
-    logger.info("Backend initializing", { attempt: 1, maxRetries: 3 });
-
-    // 1. Database
+    logger.info("Initializing OCR Cloud Stack...");
+    
+    // 1. DB
     await migrate();
 
     // 2. Storage
     await ensureBucket();
 
-    // 3. Start Listening
+    // 3. Listen
     app.listen(port, () => {
       logger.info(`Server listening on port ${port}`);
-      logger.info("Backend initialized successfully");
     });
 
   } catch (err: any) {
-    logger.error("Startup init failed", { error: err.message });
-    // In production, we don't necessarily want to exit(1) immediately on first failure 
-    // to allow Render's health checks to provide diagnostic output.
+    logger.error("Startup partial failure", { error: err.message });
+    // Keep server alive for /health diagnostics even if core init fails
     app.listen(port, () => {
-      logger.warn("Server started in DEGRADED mode for diagnostics", { port });
+      logger.warn("Server running in diagnostic mode due to init failure");
     });
   }
 }
 
-// ── Shutdown Logic ────────────────────────────────────────────
+// ── Shutdown ────────────────────────────────────────────
 
 process.on("SIGTERM", async () => {
-  logger.info("Shutting down gracefully...");
+  logger.info("Shutting down...");
   await closeRedis();
   const pool = getPool();
   if (pool) await pool.end();
   process.exit(0);
 });
 
-// Run!
 startServer();
