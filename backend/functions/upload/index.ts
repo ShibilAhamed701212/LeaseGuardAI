@@ -14,10 +14,17 @@ const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png", "image/webp"
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
 router.post("/", async (req: Request, res: Response): Promise<void> => {
-  const busboy = Busboy({
-    headers: req.headers,
-    limits: { fileSize: MAX_FILE_SIZE },
-  });
+  let busboy;
+  try {
+    busboy = Busboy({
+      headers: req.headers,
+      limits: { fileSize: MAX_FILE_SIZE },
+    });
+  } catch (err: any) {
+    logger.error("Upload rejected: Invalid content type", { message: err.message });
+    res.status(400).json({ error: "Invalid content type or missing boundary." });
+    return;
+  }
 
   const uploadPromises: Promise<void>[] = [];
   let userId = "";
