@@ -719,11 +719,16 @@ var redis = getClient();
 var DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
 var DEFAULT_OLLAMA_URL = process.env.OLLAMA_HOST ? `http://${process.env.OLLAMA_HOST}:11434` : "http://localhost:11434";
 async function downloadFileBuffer(url) {
-  const response = await fetch(url);
-  if (!response.ok)
-    throw new Error(`HTTP ${response.status} failed to fetch S3 file`);
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  try {
+    const response = await fetch(url);
+    if (!response.ok)
+      throw new Error(`HTTP ${response.status} failed to fetch file`);
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (err) {
+    logger.error("File download failed", { url, error: err.message });
+    throw new Error(`Download failed: ${err.message}`);
+  }
 }
 async function extractTextWithGoogleCloud(buffer, mimeType, config) {
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
@@ -735,11 +740,16 @@ async function extractTextWithGoogleCloud(buffer, mimeType, config) {
     data: buffer.toString("base64"),
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
   };
-  const result = await model.generateContent([
-    { text: "Extract all text from this document accurately. Do not add comments." },
-    { inlineData }
-  ]);
-  return result.response.text() || "No text found via Google Cloud OCR.";
+  try {
+    const result = await model.generateContent([
+      { text: "Extract all text from this document accurately. Do not add comments." },
+      { inlineData }
+    ]);
+    return result.response.text() || "No text found via Google Cloud OCR.";
+  } catch (err) {
+    logger.error("Google Cloud OCR fetch failed", { error: err.message });
+    throw new Error(`Google OCR failed: ${err.message}`);
+  }
 }
 async function extractTextWithPdfParse(buffer, mimeType, config) {
   try {
@@ -764,20 +774,25 @@ Return ONLY valid JSON with keys: {apr, monthly_payment, term, residual_value, m
 No markdown. No explanation. Data:
 
 ${text}`;
-  const response = await fetch(`${baseUrl}/api/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      prompt
-    })
-  });
-  if (!response.ok)
-    throw new Error(`Ollama API error: ${response.status}`);
-  const data = await response.json();
-  const rawResponse = data.response || "";
-  return parseJsonResponse(rawResponse);
+  try {
+    const response = await fetch(`${baseUrl}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        prompt
+      })
+    });
+    if (!response.ok)
+      throw new Error(`Ollama API error: ${response.status}`);
+    const data = await response.json();
+    const rawResponse = data.response || "";
+    return parseJsonResponse(rawResponse);
+  } catch (err) {
+    logger.error("Ollama fetch failed", { baseUrl, error: err.message });
+    throw new Error(`Ollama failed: ${err.message}`);
+  }
 }
 async function processGemini(buffer, mimeType, config) {
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
@@ -797,14 +812,19 @@ Ensure numerics are numbers where possible, penalties can be strings.`;
     data: buffer.toString("base64"),
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
   };
-  const response = await model.generateContent([
-    { text: prompt },
-    { inlineData }
-  ]);
-  const text = response.response.text();
-  if (!text)
-    throw new Error("Empty response from Gemini");
-  return parseJsonResponse(text);
+  try {
+    const response = await model.generateContent([
+      { text: prompt },
+      { inlineData }
+    ]);
+    const text = response.response.text();
+    if (!text)
+      throw new Error("Empty response from Gemini");
+    return parseJsonResponse(text);
+  } catch (err) {
+    logger.error("Gemini AI fetch failed", { error: err.message });
+    throw new Error(`Gemini AI failed: ${err.message}`);
+  }
 }
 async function processCustomOpenAi(text, config) {
   if (!config?.baseUrl || !config?.apiKey) {
