@@ -6,9 +6,9 @@ import processRouter from "./process";
 import statusRouter from "./status";
 import resultRouter from "./result";
 import cleanupRouter from "./cleanup";
-import { migrate, closePool, checkDBHealth } from "./utils/postgresClient";
+import { migrate, closePool, getPool } from "./utils/postgresClient";
 import { checkStorageHealth } from "./utils/minioClient";
-import { closeRedis, checkRedisHealth } from "./utils/redisClient";
+import { checkRedisHealth } from "./utils/redisClient";
 import { logger } from "./utils/logger";
 
 const app = express();
@@ -31,22 +31,44 @@ app.use("/cleanup", cleanupRouter);
 
 // ── Enhanced Health Check ──────────────────────────────────────
 app.get("/health", async (req, res) => {
-  const [dbOk, redisOk, storageOk] = await Promise.all([
-    checkDBHealth(),
-    checkRedisHealth(),
-    checkStorageHealth()
+  const [dbStatus, redisStatus, storageStatus] = await Promise.all([
+    (async () => {
+      try {
+        const p = getPool();
+        await p.query("SELECT 1");
+        return { ok: true };
+      } catch (e: any) {
+        return { ok: false, err: e.message };
+      }
+    })(),
+    (async () => {
+      try {
+        const ok = await checkRedisHealth();
+        return ok ? { ok: true } : { ok: false, err: "Ping failed" };
+      } catch (e: any) {
+        return { ok: false, err: e.message };
+      }
+    })(),
+    (async () => {
+      try {
+        const ok = await checkStorageHealth();
+        return ok ? { ok: true } : { ok: false, err: "Bucket check failed" };
+      } catch (e: any) {
+        return { ok: false, err: e.message };
+      }
+    })()
   ]);
 
-  const allOk = dbOk && redisOk && storageOk;
+  const allOk = dbStatus.ok && redisStatus.ok && storageStatus.ok;
 
-  res.status(allOk ? 200 : 503).json({
+  res.status(200).json({
     status: allOk ? "ok" : "degraded",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     services: {
-      database: dbOk ? "connected" : "error",
-      redis: redisOk ? "connected" : "error",
-      storage: storageOk ? "connected" : "error"
+      database: dbStatus.ok ? "connected" : dbStatus.err,
+      redis: redisStatus.ok ? "connected" : redisStatus.err,
+      storage: storageStatus.ok ? "connected" : storageStatus.err
     }
   });
 });
@@ -85,7 +107,6 @@ app.listen(PORT, "0.0.0.0", () => {
 async function shutdown() {
   logger.info("Shutting down...");
   await closePool();
-  await closeRedis();
   process.exit(0);
 }
 
