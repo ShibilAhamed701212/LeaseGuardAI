@@ -2,7 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 import fetch from "node-fetch"; // or global fetch in Node 18+
 import pdfParse from "pdf-parse";
-import { getClient, storeResult } from "./utils/redisClient";
+import { getClient, storeResult, setJobStatus } from "./utils/redisClient";
 import { updateJobStatus as updatePgStatus } from "./utils/postgresClient";
 import { logger } from "./utils/logger";
 
@@ -220,11 +220,13 @@ async function processJob(job: WorkerJob) {
 
     // Complete Job
     await storeResult(job.job_id, resultPayload);
+    await setJobStatus(job.job_id, "completed").catch(() => null);
     await updatePgStatus(job.job_id, "completed").catch(() => null);
     
     logger.info(`Worker completed job: ${job.job_id}`);
   } catch (err: any) {
     logger.error(`Worker failed job: ${job.job_id}`, { message: err.message });
+    await setJobStatus(job.job_id, "failed").catch(() => null);
     await updatePgStatus(job.job_id, "failed").catch(() => null);
   }
 }
