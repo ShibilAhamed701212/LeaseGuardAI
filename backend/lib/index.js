@@ -556,7 +556,7 @@ async function triggerN8nWebhook(payload) {
 
 // functions/process/index.ts
 var router3 = import_express3.default.Router();
-var VALID_OCR = ["tesseract", "paddle"];
+var VALID_OCR = ["tesseract", "google_cloud"];
 var VALID_AI = ["ollama", "gemini", "custom"];
 router3.post("/", async (req, res) => {
   const { job_id, ocr, ai, config } = req.body;
