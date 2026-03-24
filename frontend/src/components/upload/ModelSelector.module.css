@@ -29,3 +29,11 @@
   outline: none;
   border-color: var(--accent);
 }
+
+.hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.8;
+  margin-top: 0.25rem;
+  font-style: italic;
+}

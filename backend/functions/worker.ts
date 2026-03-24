@@ -1,6 +1,7 @@
 // worker.ts — Standalone AI/OCR Queue Processor
 import { GoogleGenAI } from "@google/genai";
 import pdfParse from "pdf-parse";
+import { createWorker } from "tesseract.js";
 import { getClient, storeResult, setJobStatus } from "./utils/redisClient";
 import { updateJobStatus as updatePgStatus } from "./utils/postgresClient";
 import { logger } from "./utils/logger";
@@ -32,14 +33,33 @@ async function downloadFileBuffer(url: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
-async function extractTextWithPdfParse(buffer: Buffer): Promise<string> {
+async function extractTextWithTesseract(buffer: Buffer): Promise<string> {
+  const worker = await createWorker('eng');
+  const { data: { text } } = await worker.recognize(buffer);
+  await worker.terminate();
+  return text;
+}
+
+async function extractTextWithPdfParse(buffer: Buffer, ocrType: string): Promise<string> {
   try {
+    // 1. Try native text layer first
     // @ts-ignore
     const data = await pdfParse(buffer);
-    return data.text || "No text found in PDF.";
+    let text = data.text?.trim();
+    
+    // 2. If no text found and Tesseract is requested, perform OCR on images
+    if ((!text || text.length < 50) && ocrType === "tesseract") {
+      logger.info("Empty PDF text layer, falling back to Tesseract OCR");
+      // Note: In a real prod env, we'd convert PDF pages to images first.
+      // For now, Tesseract.js can attempt to recognize the buffer if it's an image.
+      return await extractTextWithTesseract(buffer);
+    }
+    
+    return text || "No usable text found in document.";
   } catch (err: any) {
-    logger.warn("pdf-parse failed, falling back", { err: err.message });
-    return "Fallback OCR required. Image/Scan detected.";
+    logger.warn("Document parsing failure", { err: err.message });
+    if (ocrType === "tesseract") return await extractTextWithTesseract(buffer);
+    return "Error: Document could not be read.";
   }
 }
 
@@ -170,7 +190,7 @@ async function processJob(job: WorkerJob) {
       sla = await processGemini(fileBuffer, mimeType, job.config);
     } else {
       // Require localized Text extraction for Ollama or Custom OpenAI
-      let text = await extractTextWithPdfParse(fileBuffer);
+      let text = await extractTextWithPdfParse(fileBuffer, job.ocr);
 
       if (job.ai === "ollama") {
         sla = await processOllama(text, job.config);

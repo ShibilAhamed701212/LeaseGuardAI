@@ -714,6 +714,7 @@ var cleanup_default = router5;
 // functions/worker.ts
 var import_genai = require("@google/genai");
 var import_pdf_parse = __toESM(require("pdf-parse"));
+var import_tesseract = require("tesseract.js");
 var POLL_INTERVAL = 3e3;
 var redis = getClient();
 var DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
@@ -725,13 +726,26 @@ async function downloadFileBuffer(url) {
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
-async function extractTextWithPdfParse(buffer) {
+async function extractTextWithTesseract(buffer) {
+  const worker = await (0, import_tesseract.createWorker)("eng");
+  const { data: { text } } = await worker.recognize(buffer);
+  await worker.terminate();
+  return text;
+}
+async function extractTextWithPdfParse(buffer, ocrType) {
   try {
     const data = await (0, import_pdf_parse.default)(buffer);
-    return data.text || "No text found in PDF.";
+    let text = data.text?.trim();
+    if ((!text || text.length < 50) && ocrType === "tesseract") {
+      logger.info("Empty PDF text layer, falling back to Tesseract OCR");
+      return await extractTextWithTesseract(buffer);
+    }
+    return text || "No usable text found in document.";
   } catch (err) {
-    logger.warn("pdf-parse failed, falling back", { err: err.message });
-    return "Fallback OCR required. Image/Scan detected.";
+    logger.warn("Document parsing failure", { err: err.message });
+    if (ocrType === "tesseract")
+      return await extractTextWithTesseract(buffer);
+    return "Error: Document could not be read.";
   }
 }
 async function processOllama(text, config) {
@@ -848,7 +862,7 @@ async function processJob(job) {
     if (job.ai === "gemini") {
       sla = await processGemini(fileBuffer, mimeType, job.config);
     } else {
-      let text = await extractTextWithPdfParse(fileBuffer);
+      let text = await extractTextWithPdfParse(fileBuffer, job.ocr);
       if (job.ai === "ollama") {
         sla = await processOllama(text, job.config);
       } else if (job.ai === "custom") {

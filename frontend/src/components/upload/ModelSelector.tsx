@@ -27,23 +27,24 @@ export function ModelSelector({ ocr, ai, config, onOcr, onAi, onConfigChange, di
   return (
     <div className={styles.wrapper}>
       <div className={styles.group}>
-        <label className={styles.label}>OCR Engine</label>
+        <label className={styles.label}>OCR ENGINE (DOCUMENT READING)</label>
         <div className={styles.chips}>
           {OCR_ENGINES.map((e) => (
             <button key={e} disabled={disabled} type="button"
               className={`${styles.chip} ${ocr === e ? styles.active : ""}`}
-              onClick={() => onOcr(e)}>{capitalize(e)}</button>
+              onClick={() => onOcr(e)}>{e === 'tesseract' ? 'Local Tesseract (Open Source)' : 'Cloud Multi-Modal (Native AI)'}</button>
           ))}
         </div>
+        <p className={styles.hint}>* Gemini includes built-in Cloud OCR for better accuracy on scans.</p>
       </div>
       
       <div className={styles.group}>
-        <label className={styles.label}>AI Inference Model</label>
+        <label className={styles.label}>AI INFERENCE ENGINE (DATA EXTRACTION)</label>
         <div className={styles.chips}>
           {AI_MODELS.map((m) => (
             <button key={m} disabled={disabled} type="button"
               className={`${styles.chip} ${ai === m ? styles.active : ""}`}
-              onClick={() => onAi(m)}>{m === 'ollama' ? 'Ollama (Llama3.2 1B)' : m === 'gemini' ? 'Gemini 1.5 Flash' : 'Custom Model'}</button>
+              onClick={() => onAi(m)}>{m === 'ollama' ? 'Local Ollama (Llama 3.2)' : m === 'gemini' ? 'Google Cloud (Gemini 1.5 Flash)' : 'Custom AI Node'}</button>
           ))}
         </div>
       </div>
