@@ -1,7 +1,6 @@
 // worker.ts — Standalone AI/OCR Queue Processor
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import pdfParse from "pdf-parse";
-import { createWorker } from "tesseract.js";
 import { getClient, storeResult, setJobStatus } from "./utils/redisClient";
 import { updateJobStatus as updatePgStatus } from "./utils/postgresClient";
 import { logger } from "./utils/logger";
@@ -33,33 +32,45 @@ async function downloadFileBuffer(url: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
-async function extractTextWithTesseract(buffer: Buffer): Promise<string> {
-  const worker = await createWorker('eng');
-  const { data: { text } } = await worker.recognize(buffer);
-  await worker.terminate();
-  return text;
+/** 
+ * OCR Extract: Uses Gemini 1.5 Flash to extract raw text if the native PDF layer is missing 
+ * or if the file is an image.
+ */
+async function extractTextWithGoogleCloud(buffer: Buffer, mimeType: string, config?: AiConfig): Promise<string> {
+  const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
+  if (!apiKey) throw new Error("Google Cloud OCR requires a Gemini API Key");
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const inlineData = {
+    data: buffer.toString("base64"),
+    mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
+  };
+
+  const result = await model.generateContent([
+    { text: "Extract all text from this document accurately. Do not add comments." },
+    { inlineData }
+  ]);
+  
+  return result.response.text() || "No text found via Google Cloud OCR.";
 }
 
-async function extractTextWithPdfParse(buffer: Buffer, ocrType: string): Promise<string> {
+async function extractTextWithPdfParse(buffer: Buffer, mimeType: string, config?: AiConfig): Promise<string> {
   try {
-    // 1. Try native text layer first
-    // @ts-ignore
-    const data = await pdfParse(buffer);
-    let text = data.text?.trim();
-    
-    // 2. If no text found and Tesseract is requested, perform OCR on images
-    if ((!text || text.length < 50) && ocrType === "tesseract") {
-      logger.info("Empty PDF text layer, falling back to Tesseract OCR");
-      // Note: In a real prod env, we'd convert PDF pages to images first.
-      // For now, Tesseract.js can attempt to recognize the buffer if it's an image.
-      return await extractTextWithTesseract(buffer);
+    if (mimeType === "application/pdf") {
+      // @ts-ignore
+      const data = await pdfParse(buffer);
+      let text = data.text?.trim();
+      if (text && text.length > 100) return text;
     }
     
-    return text || "No usable text found in document.";
+    // Fallback to Gemini OCR for images or scanned PDFs
+    logger.info("Falling back to Google Cloud OCR for deep scan");
+    return await extractTextWithGoogleCloud(buffer, mimeType, config);
   } catch (err: any) {
-    logger.warn("Document parsing failure", { err: err.message });
-    if (ocrType === "tesseract") return await extractTextWithTesseract(buffer);
-    return "Error: Document could not be read.";
+    logger.warn("Document parsing failure, using Google Cloud fallback", { err: err.message });
+    return await extractTextWithGoogleCloud(buffer, mimeType, config);
   }
 }
 
@@ -91,42 +102,31 @@ async function processGemini(buffer: Buffer, mimeType: string, config?: AiConfig
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
   if (!apiKey) throw new Error("Gemini API key is required but missing");
 
-  const ai = new GoogleGenAI({ apiKey });
-  const model = config?.modelName || "gemini-1.5-flash";
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ 
+    model: config?.modelName || "gemini-1.5-flash",
+    generationConfig: {
+      responseMimeType: "application/json"
+    }
+  });
 
   const prompt = `Extract structured SLA data from this lease contract. 
 Return ONLY valid JSON with keys: {apr, monthly_payment, term, residual_value, mileage_limit, penalties}. 
-Do not include \`\`\`json markdown blocks, just the raw JSON fields. Ensure numerics are numbers where possible, penalties can be strings.`;
+Ensure numerics are numbers where possible, penalties can be strings.`;
 
-  // Provide exactly the format expected by GenAI SDK for inline base64
   const inlineData = {
     data: buffer.toString("base64"),
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
   };
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            text: prompt
-          },
-          {
-            inlineData
-          }
-        ]
-      }
-    ],
-    config: {
-      temperature: 0.1,
-      responseMimeType: "application/json"
-    }
-  });
+  const response = await model.generateContent([
+    { text: prompt },
+    { inlineData }
+  ]);
 
-  if (!response.text) throw new Error("Empty response from Gemini");
-  return parseJsonResponse(response.text);
+  const text = response.response.text();
+  if (!text) throw new Error("Empty response from Gemini");
+  return parseJsonResponse(text);
 }
 
 async function processCustomOpenAi(text: string, config?: AiConfig): Promise<any> {
@@ -159,7 +159,7 @@ async function processCustomOpenAi(text: string, config?: AiConfig): Promise<any
 }
 
 function parseJsonResponse(text: string): any {
-  let cleaned = text.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").trim();
+  let cleaned = text.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").replace(/\s+/g, " ").trim();
   try {
     return JSON.parse(cleaned);
   } catch (err) {
@@ -186,11 +186,11 @@ async function processJob(job: WorkerJob) {
     let sla = null;
 
     if (job.ai === "gemini") {
-      // Gemini 1.5 natively supports PDF and image vision inline!
+      // Gemini 1.5 natively supports multimodal OCR + extraction!
       sla = await processGemini(fileBuffer, mimeType, job.config);
     } else {
-      // Require localized Text extraction for Ollama or Custom OpenAI
-      let text = await extractTextWithPdfParse(fileBuffer, job.ocr);
+      // Require Text extraction for Ollama or Custom OpenAI
+      let text = await extractTextWithPdfParse(fileBuffer, mimeType, job.config);
 
       if (job.ai === "ollama") {
         sla = await processOllama(text, job.config);
@@ -201,13 +201,12 @@ async function processJob(job: WorkerJob) {
       }
     }
 
-    // Fairness & Price logic (just like n8n standard)
+    // Fairness & Price logic
     const residuals = sla.residual_value || 0;
     const monthly = sla.monthly_payment || 0;
     const term = sla.term || 36;
     const market_value = Math.round(residuals + (monthly * term * 0.6)) || 25000;
     
-    // Simplistic Fairness calculation
     let aprScore = 50;
     if (sla.apr !== null) {
       if (sla.apr <= 3) aprScore = 100;
@@ -218,9 +217,7 @@ async function processJob(job: WorkerJob) {
 
     const dp = (sla.apr !== null ? 1 : 0) + (sla.monthly_payment !== null ? 1 : 0) + (sla.residual_value !== null ? 1 : 0) + (sla.term !== null ? 1 : 0);
     const confidence = Math.round((dp / 4) * 100);
-
     const price_estimate = { market_value, confidence };
-    
     const fairness_score = Math.max(10, Math.min(100, Math.round((aprScore + confidence) / 2)));
 
     const negotiation_tips = [];
@@ -228,16 +225,14 @@ async function processJob(job: WorkerJob) {
     if (sla.mileage_limit && sla.mileage_limit < 12000) negotiation_tips.push("Mileage limit is restrictive. Watch out for overage fees.");
     if (negotiation_tips.length === 0) negotiation_tips.push("Contract looks standard. Make sure you verified the residual carefully.");
 
-    // Assembly
     const resultPayload = {
       sla,
-      vin: null, // Hard to reliably extract without deep regex mapping
+      vin: null,
       price_estimate,
       fairness_score,
       negotiation_tips
     };
 
-    // Complete Job
     await storeResult(job.job_id, resultPayload);
     await setJobStatus(job.job_id, "completed").catch(() => null);
     await updatePgStatus(job.job_id, "completed").catch(() => null);
@@ -256,7 +251,6 @@ export function startWorker() {
     if (isWorking) return;
     try {
       isWorking = true;
-      // blpop or rpop. rpop returns directly.
       const jobString = await redis.rpop("ocr:queue");
       if (jobString) {
         const job = JSON.parse(jobString) as WorkerJob;
@@ -269,3 +263,4 @@ export function startWorker() {
     }
   }, POLL_INTERVAL);
 }
+

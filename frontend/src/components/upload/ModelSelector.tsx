@@ -1,7 +1,7 @@
 import { capitalize } from "../../utils/helpers";
 import styles from "./ModelSelector.module.css";
 
-const OCR_ENGINES = ["tesseract", "google_cloud"] as const;
+const OCR_ENGINES = ["google_cloud"] as const;
 const AI_MODELS   = ["ollama", "gemini", "custom"] as const;
 
 export type OcrEngine = (typeof OCR_ENGINES)[number];
@@ -32,10 +32,9 @@ export function ModelSelector({ ocr, ai, config, onOcr, onAi, onConfigChange, di
           {OCR_ENGINES.map((e) => (
             <button key={e} disabled={disabled} type="button"
               className={`${styles.chip} ${ocr === e ? styles.active : ""}`}
-              onClick={() => onOcr(e)}>{e === 'tesseract' ? 'Local Tesseract (Fast)' : 'Google Cloud (Vision AI)'}</button>
+              onClick={() => onOcr(e)}>{'Google Cloud (Vision AI)'}</button>
           ))}
         </div>
-        <p className={styles.hint}>* Google Cloud OCR is highly recommended for complex lease tables.</p>
       </div>
       
       <div className={styles.group}>

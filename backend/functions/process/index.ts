@@ -9,7 +9,7 @@ import { logger } from "../utils/logger";
 
 const router = express.Router();
 
-const VALID_OCR = ["tesseract", "google_cloud"] as const;
+const VALID_OCR = ["google_cloud"] as const;
 const VALID_AI  = ["ollama", "gemini", "custom"] as const;
 
 type OcrEngine = (typeof VALID_OCR)[number];

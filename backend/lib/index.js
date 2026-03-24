@@ -556,7 +556,7 @@ async function triggerN8nWebhook(payload) {
 
 // functions/process/index.ts
 var router3 = import_express3.default.Router();
-var VALID_OCR = ["tesseract", "google_cloud"];
+var VALID_OCR = ["google_cloud"];
 var VALID_AI = ["ollama", "gemini", "custom"];
 router3.post("/", async (req, res) => {
   const { job_id, ocr, ai, config } = req.body;
@@ -712,9 +712,8 @@ router5.delete("/:job_id", async (req, res) => {
 var cleanup_default = router5;
 
 // functions/worker.ts
-var import_genai = require("@google/genai");
+var import_generative_ai = require("@google/generative-ai");
 var import_pdf_parse = __toESM(require("pdf-parse"));
-var import_tesseract = require("tesseract.js");
 var POLL_INTERVAL = 3e3;
 var redis = getClient();
 var DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
@@ -726,26 +725,35 @@ async function downloadFileBuffer(url) {
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
-async function extractTextWithTesseract(buffer) {
-  const worker = await (0, import_tesseract.createWorker)("eng");
-  const { data: { text } } = await worker.recognize(buffer);
-  await worker.terminate();
-  return text;
+async function extractTextWithGoogleCloud(buffer, mimeType, config) {
+  const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
+  if (!apiKey)
+    throw new Error("Google Cloud OCR requires a Gemini API Key");
+  const genAI = new import_generative_ai.GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const inlineData = {
+    data: buffer.toString("base64"),
+    mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
+  };
+  const result = await model.generateContent([
+    { text: "Extract all text from this document accurately. Do not add comments." },
+    { inlineData }
+  ]);
+  return result.response.text() || "No text found via Google Cloud OCR.";
 }
-async function extractTextWithPdfParse(buffer, ocrType) {
+async function extractTextWithPdfParse(buffer, mimeType, config) {
   try {
-    const data = await (0, import_pdf_parse.default)(buffer);
-    let text = data.text?.trim();
-    if ((!text || text.length < 50) && ocrType === "tesseract") {
-      logger.info("Empty PDF text layer, falling back to Tesseract OCR");
-      return await extractTextWithTesseract(buffer);
+    if (mimeType === "application/pdf") {
+      const data = await (0, import_pdf_parse.default)(buffer);
+      let text = data.text?.trim();
+      if (text && text.length > 100)
+        return text;
     }
-    return text || "No usable text found in document.";
+    logger.info("Falling back to Google Cloud OCR for deep scan");
+    return await extractTextWithGoogleCloud(buffer, mimeType, config);
   } catch (err) {
-    logger.warn("Document parsing failure", { err: err.message });
-    if (ocrType === "tesseract")
-      return await extractTextWithTesseract(buffer);
-    return "Error: Document could not be read.";
+    logger.warn("Document parsing failure, using Google Cloud fallback", { err: err.message });
+    return await extractTextWithGoogleCloud(buffer, mimeType, config);
   }
 }
 async function processOllama(text, config) {
@@ -775,38 +783,28 @@ async function processGemini(buffer, mimeType, config) {
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
   if (!apiKey)
     throw new Error("Gemini API key is required but missing");
-  const ai = new import_genai.GoogleGenAI({ apiKey });
-  const model = config?.modelName || "gemini-1.5-flash";
+  const genAI = new import_generative_ai.GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: config?.modelName || "gemini-1.5-flash",
+    generationConfig: {
+      responseMimeType: "application/json"
+    }
+  });
   const prompt = `Extract structured SLA data from this lease contract. 
 Return ONLY valid JSON with keys: {apr, monthly_payment, term, residual_value, mileage_limit, penalties}. 
-Do not include \`\`\`json markdown blocks, just the raw JSON fields. Ensure numerics are numbers where possible, penalties can be strings.`;
+Ensure numerics are numbers where possible, penalties can be strings.`;
   const inlineData = {
     data: buffer.toString("base64"),
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
   };
-  const response = await ai.models.generateContent({
-    model,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: prompt
-          },
-          {
-            inlineData
-          }
-        ]
-      }
-    ],
-    config: {
-      temperature: 0.1,
-      responseMimeType: "application/json"
-    }
-  });
-  if (!response.text)
+  const response = await model.generateContent([
+    { text: prompt },
+    { inlineData }
+  ]);
+  const text = response.response.text();
+  if (!text)
     throw new Error("Empty response from Gemini");
-  return parseJsonResponse(response.text);
+  return parseJsonResponse(text);
 }
 async function processCustomOpenAi(text, config) {
   if (!config?.baseUrl || !config?.apiKey) {
@@ -836,7 +834,7 @@ ${text}`;
   return parseJsonResponse(data.choices?.[0]?.message?.content || "");
 }
 function parseJsonResponse(text) {
-  let cleaned = text.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").trim();
+  let cleaned = text.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").replace(/\s+/g, " ").trim();
   try {
     return JSON.parse(cleaned);
   } catch (err) {
@@ -862,7 +860,7 @@ async function processJob(job) {
     if (job.ai === "gemini") {
       sla = await processGemini(fileBuffer, mimeType, job.config);
     } else {
-      let text = await extractTextWithPdfParse(fileBuffer, job.ocr);
+      let text = await extractTextWithPdfParse(fileBuffer, mimeType, job.config);
       if (job.ai === "ollama") {
         sla = await processOllama(text, job.config);
       } else if (job.ai === "custom") {
@@ -900,7 +898,6 @@ async function processJob(job) {
     const resultPayload = {
       sla,
       vin: null,
-      // Hard to reliably extract without deep regex mapping
       price_estimate,
       fairness_score,
       negotiation_tips
