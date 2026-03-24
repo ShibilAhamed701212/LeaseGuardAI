@@ -18,11 +18,11 @@ import {
 
 // ── Route Handlers ────────────────────────────────────────────
 
-import { uploadHandler } from "./handlers/upload";
-import { statusHandler } from "./handlers/status";
-import { processHandler } from "./handlers/process";
-import { resultHandler } from "./handlers/result";
-import { cleanupHandler } from "./handlers/cleanup";
+import uploadHandler from "./upload";
+import statusHandler from "./status";
+import processHandler from "./process";
+import resultHandler from "./result";
+import cleanupHandler from "./cleanup";
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -85,11 +85,11 @@ app.get("/health", async (_req, res) => {
 
 // ── Actual API Routes ──────────────────────────────────────────
 
-app.post("/upload", uploadHandler);
-app.get("/status/:jobId", statusHandler);
-app.post("/process", processHandler);
-app.get("/result/:jobId", resultHandler);
-app.delete("/cleanup/:jobId", cleanupHandler);
+app.use("/upload", uploadHandler);
+app.use("/status", statusHandler);
+app.use("/process", processHandler);
+app.use("/result", resultHandler);
+app.use("/cleanup", cleanupHandler);
 
 // ── Initialization Logic ──────────────────────────────────────
 
