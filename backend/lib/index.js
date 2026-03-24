@@ -713,14 +713,13 @@ var cleanup_default = router5;
 
 // functions/worker.ts
 var import_genai = require("@google/genai");
-var import_node_fetch = __toESM(require("node-fetch"));
 var import_pdf_parse = __toESM(require("pdf-parse"));
 var POLL_INTERVAL = 3e3;
 var redis = getClient();
 var DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
 var DEFAULT_OLLAMA_URL = process.env.OLLAMA_HOST ? `http://${process.env.OLLAMA_HOST}:11434` : "http://localhost:11434";
 async function downloadFileBuffer(url) {
-  const response = await (0, import_node_fetch.default)(url);
+  const response = await fetch(url);
   if (!response.ok)
     throw new Error(`HTTP ${response.status} failed to fetch S3 file`);
   const arrayBuffer = await response.arrayBuffer();
@@ -743,7 +742,7 @@ Return ONLY valid JSON with keys: {apr, monthly_payment, term, residual_value, m
 No markdown. No explanation. Data:
 
 ${text}`;
-  const response = await (0, import_node_fetch.default)(`${baseUrl}/api/generate`, {
+  const response = await fetch(`${baseUrl}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -803,7 +802,7 @@ async function processCustomOpenAi(text, config) {
   const prompt = `Extract structured SLA data from this lease contract. Return ONLY raw JSON: {"apr": null, "monthly_payment": null, "term": null, "residual_value": null, "mileage_limit": null, "penalties": null}. No markdown.
 
 ${text}`;
-  const response = await (0, import_node_fetch.default)(`${config.baseUrl}/v1/chat/completions`, {
+  const response = await fetch(`${config.baseUrl}/v1/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -893,10 +892,12 @@ async function processJob(job) {
       negotiation_tips
     };
     await storeResult(job.job_id, resultPayload);
+    await setJobStatus(job.job_id, "completed").catch(() => null);
     await updateJobStatus(job.job_id, "completed").catch(() => null);
     logger.info(`Worker completed job: ${job.job_id}`);
   } catch (err) {
     logger.error(`Worker failed job: ${job.job_id}`, { message: err.message });
+    await setJobStatus(job.job_id, "failed").catch(() => null);
     await updateJobStatus(job.job_id, "failed").catch(() => null);
   }
 }

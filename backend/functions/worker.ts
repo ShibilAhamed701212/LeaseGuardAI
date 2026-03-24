@@ -1,6 +1,5 @@
 // worker.ts — Standalone AI/OCR Queue Processor
 import { GoogleGenAI } from "@google/genai";
-import fetch from "node-fetch"; // or global fetch in Node 18+
 import pdfParse from "pdf-parse";
 import { getClient, storeResult, setJobStatus } from "./utils/redisClient";
 import { updateJobStatus as updatePgStatus } from "./utils/postgresClient";
