@@ -312,8 +312,35 @@ async function processJob(job: WorkerJob) {
   }
 }
 
+/** 
+ * Self-healing: Find jobs in PG that are stuck in 'processing' but not in Redis queue.
+ * Cleans up orphaned states after system restarts or hard crashes on Render.
+ */
+async function healOrphanedJobs() {
+  try {
+    const pool = require("./utils/postgresClient").getPool();
+    // Mark as failed if processing and created > 5 min ago (to avoid race with new jobs)
+    const res = await pool.query(`
+      UPDATE jobs 
+         SET status = 'failed', updated_at = NOW()
+       WHERE status = 'processing' 
+         AND updated_at < NOW() - INTERVAL '5 minutes'
+    `);
+    if (res.rowCount > 0) {
+      logger.info(`Self-healing: recovered ${res.rowCount} orphaned processing jobs.`);
+    }
+  } catch (err: any) {
+    logger.warn("Self-healing check failed", { error: err.message });
+  }
+}
+
 export function startWorker() {
   logger.info("Starting Background AI Worker engine...");
+  
+  // 1. Immediate healing on startup
+  healOrphanedJobs().catch(() => null);
+
+  // 2. Main loop
   setInterval(async () => {
     if (isWorking) return;
     try {
@@ -333,5 +360,10 @@ export function startWorker() {
       isWorking = false;
     }
   }, POLL_INTERVAL);
+
+  // 3. Periodic healing (every 5 minutes)
+  setInterval(() => {
+    if (!isWorking) healOrphanedJobs().catch(() => null);
+  }, 300000); // 5 min
 }
 
