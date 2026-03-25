@@ -138,9 +138,30 @@ async function processGemini(buffer: Buffer, mimeType: string, config?: AiConfig
     }
   });
 
-  const prompt = `Extract structured SLA data from this lease contract. 
-Return ONLY valid JSON with keys: {apr, monthly_payment, term, residual_value, mileage_limit, penalties}. 
-Ensure numerics are numbers where possible, penalties can be strings.`;
+  const prompt = `You are a vehicle lease agreement expert. Extract structured data from this contract.
+RULES:
+1. Detect currency: ₹=INR, $=USD. Default to INR if ₹ or "Lakh" is found.
+2. Term math: Calculate duration strictly from start/end dates (e.g. 2024 to 2028 is 48 months).
+3. Extract financial values exactly. If missing, return null.
+4. Identifies Risks: GAP liability, 3x monthly residual risk, early termination penalties.
+
+STRICT JSON FORMAT:
+{
+  "currency": "INR",
+  "monthly_payment": number,
+  "security_deposit": number,
+  "term_months": number,
+  "apr": number or null,
+  "residual_value": number or null,
+  "mileage_limit": number or null,
+  "penalties": "raw string of penalty keywords",
+  "risks": {
+    "gap_liability": boolean,
+    "early_termination_penalty": boolean,
+    "residual_risk_3x": boolean
+  },
+  "fairness_explanation": "short reasoning"
+}`;
 
   const inlineData = {
     data: buffer.toString("base64"),
@@ -234,36 +255,37 @@ async function processJob(job: WorkerJob) {
       }
     }
 
-    // Fairness & Price logic
-    const residuals = sla.residual_value || 0;
-    const monthly = sla.monthly_payment || 0;
-    const term = sla.term || 36;
-    const market_value = Math.round(residuals + (monthly * term * 0.6)) || 25000;
+    // Rule-Based Fairness Scoring (Targeting 90%+ Accuracy)
+    let score = 100;
+    if (sla.risks?.gap_liability) score -= 15;
+    if (sla.risks?.residual_risk_3x) score -= 20;
+    if (sla.risks?.early_termination_penalty) score -= 10;
+    if (sla.mileage_limit && sla.mileage_limit < 10000) score -= 10;
     
-    let aprScore = 50;
-    if (sla.apr !== null) {
-      if (sla.apr <= 3) aprScore = 100;
-      else if (sla.apr <= 6) aprScore = 80;
-      else if (sla.apr <= 10) aprScore = 40;
-      else aprScore = 10;
-    }
+    // Bonuses
+    if (sla.mileage_limit && sla.mileage_limit > 50000) score += 5; // essentially unlimited
+    if (sla.security_deposit > 0) score += 5;
 
-    const dp = (sla.apr !== null ? 1 : 0) + (sla.monthly_payment !== null ? 1 : 0) + (sla.residual_value !== null ? 1 : 0) + (sla.term !== null ? 1 : 0);
-    const confidence = Math.round((dp / 4) * 100);
-    const price_estimate = { market_value, confidence };
-    const fairness_score = Math.max(10, Math.min(100, Math.round((aprScore + confidence) / 2)));
+    const fairness_score = Math.max(10, Math.min(100, score));
 
-    const negotiation_tips = [];
-    if (sla.apr && sla.apr > 6) negotiation_tips.push("Your APR is quite high. Consider bringing your own bank pre-approval.");
-    if (sla.mileage_limit && sla.mileage_limit < 12000) negotiation_tips.push("Mileage limit is restrictive. Watch out for overage fees.");
-    if (negotiation_tips.length === 0) negotiation_tips.push("Contract looks standard. Make sure you verified the residual carefully.");
+    // Data Presence Confidence
+    const dpFields = [sla.monthly_payment, sla.term_months, sla.security_deposit].filter(f => f !== null).length;
+    const confidence = Math.round((dpFields / 3) * 100);
 
     const resultPayload = {
-      sla,
+      sla: {
+        ...sla,
+        term: sla.term_months, // map for frontend
+        penalties: sla.penalties || sla.fairness_explanation
+      },
       vin: null,
-      price_estimate,
+      price_estimate: { 
+        market_value: sla.monthly_payment ? sla.monthly_payment * (sla.term_months || 48) : null, 
+        confidence,
+        currency: sla.currency || "INR"
+      },
       fairness_score,
-      negotiation_tips
+      negotiation_tips: [sla.fairness_explanation || "Verify the residual clauses carefully."]
     };
 
     await storeResult(job.job_id, resultPayload);
