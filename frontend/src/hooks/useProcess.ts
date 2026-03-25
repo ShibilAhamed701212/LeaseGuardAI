@@ -13,7 +13,7 @@ interface UseProcessReturn {
 const POLL_MS   = 2000;
 const MAX_POLLS = 300; // 10 minutes max for complex leases
 
-export function useProcess(onComplete: () => void): UseProcessReturn {
+export function useProcess(onComplete: (jobId: string) => void): UseProcessReturn {
   const [status,  setStatus]  = useState<JobStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
@@ -35,7 +35,7 @@ export function useProcess(onComplete: () => void): UseProcessReturn {
         try {
           const { status: s } = await getStatus(job_id);
           setStatus(s);
-          if (s === "completed") { stop(); setLoading(false); onComplete(); }
+          if (s === "completed") { stop(); setLoading(false); onComplete(job_id); }
           if (s === "failed")    { stop(); setLoading(false); setError("Processing failed on server."); }
           if (polls >= MAX_POLLS){ stop(); setLoading(false); setError("Processing timed out. Please retry."); }
         } catch (e) { stop(); setLoading(false); setError(friendlyError(e)); }

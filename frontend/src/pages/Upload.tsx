@@ -13,16 +13,15 @@ export function Upload() {
   const submitting = useRef(false);
 
   const [file,  setFile]  = useState<File | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [ocr,   setOcr]   = useState<OcrEngine>("google_cloud");
   const [ai,    setAi]    = useState<AiModel>("gemini");
   const [config, setConfig] = useState<AiConfig>({});
   const [step,  setStep]  = useState("idle");
 
-  const onComplete = useCallback(() => {
+  const onComplete = useCallback((completedJobId: string) => {
     submitting.current = false;
-    if (jobId) navigate(`/result/${jobId}`);
-  }, [jobId, navigate]);
+    navigate(`/result/${completedJobId}`);
+  }, [navigate]);
 
   const { upload,  loading: uploading,  error: upErr  } = useUpload();
   const { trigger, loading: processing, error: procErr, status: procStatus } = useProcess(onComplete);
@@ -48,7 +47,6 @@ export function Upload() {
     setStep("uploading");
     const id = await upload(file);
     if (!id) { submitting.current = false; return; }
-    setJobId(id);
     setStep("processing");
     await trigger(id, ocr, ai, config);
   }
