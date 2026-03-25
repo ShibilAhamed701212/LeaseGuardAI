@@ -23,6 +23,7 @@ import statusHandler from "./status";
 import processHandler from "./process";
 import resultHandler from "./result";
 import cleanupHandler from "./cleanup";
+import debugHandler from "./debug";
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -90,6 +91,7 @@ app.use("/status", statusHandler);
 app.use("/process", processHandler);
 app.use("/result", resultHandler);
 app.use("/cleanup", cleanupHandler);
+app.use("/debug", debugHandler);
 
 // ── Initialization Logic ──────────────────────────────────────
 import { startWorker } from "./worker";

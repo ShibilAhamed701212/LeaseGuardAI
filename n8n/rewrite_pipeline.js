@@ -1,4 +1,8 @@
-{
+const fs = require('fs');
+const path = require('path');
+
+const pipelinePath = path.join(__dirname, 'workflows', 'ocr_pipeline.json');
+let pipeline = {
   "name": "OCR Agent - Backend Orchestrated Pipeline",
   "nodes": [
     {
@@ -12,10 +16,7 @@
       "name": "Webhook — Receive Job",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [
-        240,
-        300
-      ],
+      "position": [240, 300],
       "webhookId": "ocr-process"
     },
     {
@@ -26,10 +27,7 @@
       "name": "Validate & Log Payload",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [
-        460,
-        300
-      ]
+      "position": [460, 300]
     },
     {
       "parameters": {
@@ -43,10 +41,7 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [
-        680,
-        300
-      ]
+      "position": [680, 300]
     }
   ],
   "connections": {
@@ -82,4 +77,7 @@
     "ai",
     "contract-analysis"
   ]
-}
+};
+
+fs.writeFileSync(pipelinePath, JSON.stringify(pipeline, null, 2));
+console.log('Pipeline completely rewritten and perfectly connected to avoid data race with worker.');

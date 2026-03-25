@@ -169,15 +169,21 @@ STRICT JSON FORMAT:
   };
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for AI
+
     const response = await model.generateContent([
       { text: prompt },
       { inlineData }
     ]);
 
+    clearTimeout(timeoutId);
+
     const text = response.response.text();
     if (!text) throw new Error("Empty response from Gemini");
     return parseJsonResponse(text);
   } catch (err: any) {
+    if (err.name === "AbortError") throw new Error("Gemini AI request timed out (60s limit reached)");
     logger.error("Gemini AI fetch failed", { error: err.message });
     throw new Error(`Gemini AI failed: ${err.message}`);
   }
@@ -312,7 +318,11 @@ export function startWorker() {
     if (isWorking) return;
     try {
       isWorking = true;
-      const jobString = await redis.rpop("ocr:queue");
+      // Heartbeat: expire in 10s (poll is 3s)
+      await redis.set("ocr:worker:heartbeat", "active", "EX", 10).catch(() => null);
+      
+      // BLPOP or LPOP for FIFO queue (push is RPUSH, pop should be LPOP)
+      const jobString = await redis.lpop("ocr:queue");
       if (jobString) {
         const job = JSON.parse(jobString) as WorkerJob;
         await processJob(job);

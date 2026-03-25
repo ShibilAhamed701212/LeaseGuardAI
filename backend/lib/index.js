@@ -718,24 +718,37 @@ var POLL_INTERVAL = 3e3;
 var redis = getClient();
 var DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
 var DEFAULT_OLLAMA_URL = process.env.OLLAMA_HOST ? `http://${process.env.OLLAMA_HOST}:11434` : "http://localhost:11434";
-async function downloadFileBuffer(url) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok)
-      throw new Error(`HTTP ${response.status} failed to fetch file`);
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  } catch (err) {
-    logger.error("File download failed", { url, error: err.message });
-    throw new Error(`Download failed: ${err.message}`);
+async function sleep2(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+async function downloadFileBuffer(url, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15e3);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!response.ok)
+        throw new Error(`HTTP ${response.status}`);
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (err) {
+      if (i === retries - 1) {
+        logger.error("File download failed permanently", { url, error: err.message });
+        throw new Error(`Download failed: ${err.message}`);
+      }
+      logger.warn(`Download retry ${i + 1}/${retries}`, { error: err.message });
+      await sleep2(1e3 * (i + 1));
+    }
   }
+  throw new Error("Download failed");
 }
 async function extractTextWithGoogleCloud(buffer, mimeType, config) {
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
   if (!apiKey)
     throw new Error("Google Cloud OCR requires a Gemini API Key");
   const genAI = new import_generative_ai.GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   const inlineData = {
     data: buffer.toString("base64"),
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
@@ -800,14 +813,35 @@ async function processGemini(buffer, mimeType, config) {
     throw new Error("Gemini API key is required but missing");
   const genAI = new import_generative_ai.GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: config?.modelName || "gemini-1.5-flash",
+    model: config?.modelName || "gemini-2.5-flash",
     generationConfig: {
       responseMimeType: "application/json"
     }
   });
-  const prompt = `Extract structured SLA data from this lease contract. 
-Return ONLY valid JSON with keys: {apr, monthly_payment, term, residual_value, mileage_limit, penalties}. 
-Ensure numerics are numbers where possible, penalties can be strings.`;
+  const prompt = `You are a vehicle lease agreement expert. Extract structured data from this contract.
+RULES:
+1. Detect currency: \u20B9=INR, $=USD. Default to INR if \u20B9 or "Lakh" is found.
+2. Term math: Calculate duration strictly from start/end dates (e.g. 2024 to 2028 is 48 months).
+3. Extract financial values exactly. If missing, return null.
+4. Identifies Risks: GAP liability, 3x monthly residual risk, early termination penalties.
+
+STRICT JSON FORMAT:
+{
+  "currency": "INR",
+  "monthly_payment": number,
+  "security_deposit": number,
+  "term_months": number,
+  "apr": number or null,
+  "residual_value": number or null,
+  "mileage_limit": number or null,
+  "penalties": "raw string of penalty keywords",
+  "risks": {
+    "gap_liability": boolean,
+    "early_termination_penalty": boolean,
+    "residual_risk_3x": boolean
+  },
+  "fairness_explanation": "short reasoning"
+}`;
   const inlineData = {
     data: buffer.toString("base64"),
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
@@ -873,14 +907,17 @@ var isWorking = false;
 async function processJob(job) {
   logger.info(`Worker picked up job: ${job.job_id}`);
   try {
+    await setJobStatus(job.job_id, "reading_document").catch(() => null);
     const fileBuffer = await downloadFileBuffer(job.file_url);
     const isPdf = job.file_url.toLowerCase().includes(".pdf?");
     const mimeType = isPdf ? "application/pdf" : "image/jpeg";
     let sla = null;
     if (job.ai === "gemini") {
+      await setJobStatus(job.job_id, "analyzing_contract").catch(() => null);
       sla = await processGemini(fileBuffer, mimeType, job.config);
     } else {
       let text = await extractTextWithPdfParse(fileBuffer, mimeType, job.config);
+      await setJobStatus(job.job_id, "analyzing_contract").catch(() => null);
       if (job.ai === "ollama") {
         sla = await processOllama(text, job.config);
       } else if (job.ai === "custom") {
@@ -889,45 +926,47 @@ async function processJob(job) {
         throw new Error(`Unsupported AI Model: ${job.ai}`);
       }
     }
-    const residuals = sla.residual_value || 0;
-    const monthly = sla.monthly_payment || 0;
-    const term = sla.term || 36;
-    const market_value = Math.round(residuals + monthly * term * 0.6) || 25e3;
-    let aprScore = 50;
-    if (sla.apr !== null) {
-      if (sla.apr <= 3)
-        aprScore = 100;
-      else if (sla.apr <= 6)
-        aprScore = 80;
-      else if (sla.apr <= 10)
-        aprScore = 40;
-      else
-        aprScore = 10;
-    }
-    const dp = (sla.apr !== null ? 1 : 0) + (sla.monthly_payment !== null ? 1 : 0) + (sla.residual_value !== null ? 1 : 0) + (sla.term !== null ? 1 : 0);
-    const confidence = Math.round(dp / 4 * 100);
-    const price_estimate = { market_value, confidence };
-    const fairness_score = Math.max(10, Math.min(100, Math.round((aprScore + confidence) / 2)));
-    const negotiation_tips = [];
-    if (sla.apr && sla.apr > 6)
-      negotiation_tips.push("Your APR is quite high. Consider bringing your own bank pre-approval.");
-    if (sla.mileage_limit && sla.mileage_limit < 12e3)
-      negotiation_tips.push("Mileage limit is restrictive. Watch out for overage fees.");
-    if (negotiation_tips.length === 0)
-      negotiation_tips.push("Contract looks standard. Make sure you verified the residual carefully.");
+    let score = 100;
+    if (sla.risks?.gap_liability)
+      score -= 15;
+    if (sla.risks?.residual_risk_3x)
+      score -= 20;
+    if (sla.risks?.early_termination_penalty)
+      score -= 10;
+    if (sla.mileage_limit && sla.mileage_limit < 1e4)
+      score -= 10;
+    if (sla.mileage_limit && sla.mileage_limit > 5e4)
+      score += 5;
+    if (sla.security_deposit > 0)
+      score += 5;
+    const fairness_score = Math.max(10, Math.min(100, score));
+    const dpFields = [sla.monthly_payment, sla.term_months, sla.security_deposit].filter((f) => f !== null).length;
+    const confidence = Math.round(dpFields / 3 * 100);
     const resultPayload = {
-      sla,
+      sla: {
+        ...sla,
+        term: sla.term_months,
+        // map for frontend
+        penalties: sla.penalties || sla.fairness_explanation
+      },
       vin: null,
-      price_estimate,
+      price_estimate: {
+        market_value: sla.monthly_payment ? sla.monthly_payment * (sla.term_months || 48) : null,
+        confidence,
+        currency: sla.currency || "INR"
+      },
       fairness_score,
-      negotiation_tips
+      negotiation_tips: [sla.fairness_explanation || "Verify the residual clauses carefully."]
     };
     await storeResult(job.job_id, resultPayload);
     await setJobStatus(job.job_id, "completed").catch(() => null);
     await updateJobStatus(job.job_id, "completed").catch(() => null);
     logger.info(`Worker completed job: ${job.job_id}`);
   } catch (err) {
-    logger.error(`Worker failed job: ${job.job_id}`, { message: err.message });
+    logger.error(`Worker failed job: ${job.job_id}`, {
+      message: err.message,
+      stack: err.stack?.substring(0, 200)
+    });
     await setJobStatus(job.job_id, "failed").catch(() => null);
     await updateJobStatus(job.job_id, "failed").catch(() => null);
   }
