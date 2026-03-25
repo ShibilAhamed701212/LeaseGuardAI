@@ -5,6 +5,13 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -21,10 +28,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
-
-// functions/index.ts
-var import_express6 = __toESM(require("express"));
-var import_cors = __toESM(require("cors"));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // functions/utils/logger.ts
 function log(level, message, context) {
@@ -43,16 +47,32 @@ function log(level, message, context) {
     console.log(safe);
   }
 }
-var logger = {
-  info: (msg, ctx) => log("info", msg, ctx),
-  warn: (msg, ctx) => log("warn", msg, ctx),
-  error: (msg, ctx) => log("error", msg, ctx),
-  debug: (msg, ctx) => log("debug", msg, ctx)
-};
+var logger;
+var init_logger = __esm({
+  "functions/utils/logger.ts"() {
+    "use strict";
+    logger = {
+      info: (msg, ctx) => log("info", msg, ctx),
+      warn: (msg, ctx) => log("warn", msg, ctx),
+      error: (msg, ctx) => log("error", msg, ctx),
+      debug: (msg, ctx) => log("debug", msg, ctx)
+    };
+  }
+});
 
 // functions/utils/postgresClient.ts
-var import_pg = require("pg");
-var _pool = null;
+var postgresClient_exports = {};
+__export(postgresClient_exports, {
+  checkDBHealth: () => checkDBHealth,
+  closePool: () => closePool,
+  createJob: () => createJob,
+  getJob: () => getJob,
+  getJobStatusFromDB: () => getJobStatusFromDB,
+  getPool: () => getPool,
+  migrate: () => migrate,
+  updateJobStatus: () => updateJobStatus,
+  withTransaction: () => withTransaction
+});
 function getPool() {
   if (_pool)
     return _pool;
@@ -75,18 +95,6 @@ function getPool() {
   });
   return _pool;
 }
-var MIGRATION_SQL = `
-  CREATE TABLE IF NOT EXISTS jobs (
-    job_id      TEXT PRIMARY KEY,
-    status      TEXT NOT NULL DEFAULT 'uploaded',
-    ocr_engine  TEXT,
-    ai_model    TEXT,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-  CREATE INDEX IF NOT EXISTS idx_jobs_status     ON jobs(status);
-  CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
-`;
 async function migrate() {
   logger.info("Starting DB migration...");
   const pool = getPool();
@@ -130,6 +138,28 @@ async function getJobStatusFromDB(job_id) {
   );
   return r.rows[0]?.status ?? null;
 }
+async function withTransaction(fn) {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+async function closePool() {
+  if (_pool) {
+    await _pool.end();
+    _pool = null;
+    logger.info("PG pool closed");
+  }
+}
 async function checkDBHealth() {
   try {
     const pool = getPool();
@@ -141,9 +171,39 @@ async function checkDBHealth() {
     return msg;
   }
 }
+var import_pg, _pool, MIGRATION_SQL;
+var init_postgresClient = __esm({
+  "functions/utils/postgresClient.ts"() {
+    "use strict";
+    import_pg = require("pg");
+    init_logger();
+    _pool = null;
+    MIGRATION_SQL = `
+  CREATE TABLE IF NOT EXISTS jobs (
+    job_id      TEXT PRIMARY KEY,
+    status      TEXT NOT NULL DEFAULT 'uploaded',
+    ocr_engine  TEXT,
+    ai_model    TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_jobs_status     ON jobs(status);
+  CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
+`;
+  }
+});
+
+// functions/index.ts
+var import_express7 = __toESM(require("express"));
+var import_cors = __toESM(require("cors"));
+var Sentry2 = __toESM(require("@sentry/node"));
+var import_profiling_node = require("@sentry/profiling-node");
+init_logger();
+init_postgresClient();
 
 // functions/utils/redisClient.ts
 var import_ioredis = __toESM(require("ioredis"));
+init_logger();
 var RESULT_TTL = parseInt(process.env.REDIS_RESULT_TTL_SECONDS ?? "86400", 10);
 var _client = null;
 function getClient() {
@@ -252,6 +312,7 @@ async function checkRedisHealth() {
 // functions/utils/minioClient.ts
 var import_client_s3 = require("@aws-sdk/client-s3");
 var import_s3_request_presigner = require("@aws-sdk/s3-request-presigner");
+init_logger();
 var BUCKET = process.env.MINIO_BUCKET ?? "ocr-agent";
 var EXPIRY = parseInt(process.env.SIGNED_URL_EXPIRY_SECONDS ?? "3600", 10);
 var _client2 = null;
@@ -335,6 +396,8 @@ async function checkStorageHealth() {
 var import_express = __toESM(require("express"));
 var import_busboy = __toESM(require("busboy"));
 var import_uuid = require("uuid");
+init_postgresClient();
+init_logger();
 var router = import_express.default.Router();
 var ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 var MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -472,6 +535,8 @@ var upload_default = router;
 
 // functions/status/index.ts
 var import_express2 = __toESM(require("express"));
+init_postgresClient();
+init_logger();
 var router2 = import_express2.default.Router();
 router2.get("/:job_id", async (req, res) => {
   const { job_id } = req.params;
@@ -500,9 +565,11 @@ var status_default = router2;
 
 // functions/process/index.ts
 var import_express3 = __toESM(require("express"));
+init_postgresClient();
 
 // functions/utils/n8nClient.ts
 var import_axios = __toESM(require("axios"));
+init_logger();
 var MAX_RETRIES = 2;
 var RETRY_DELAY_MS = 1e3;
 async function sleep(ms) {
@@ -555,6 +622,7 @@ async function triggerN8nWebhook(payload) {
 }
 
 // functions/process/index.ts
+init_logger();
 var router3 = import_express3.default.Router();
 var VALID_OCR = ["google_cloud"];
 var VALID_AI = ["ollama", "gemini", "custom"];
@@ -618,6 +686,8 @@ var process_default = router3;
 
 // functions/result/index.ts
 var import_express4 = __toESM(require("express"));
+init_postgresClient();
+init_logger();
 var router4 = import_express4.default.Router();
 router4.get("/:job_id", async (req, res) => {
   const { job_id } = req.params;
@@ -664,6 +734,8 @@ var result_default = router4;
 
 // functions/cleanup/index.ts
 var import_express5 = __toESM(require("express"));
+init_postgresClient();
+init_logger();
 var router5 = import_express5.default.Router();
 router5.delete("/:job_id", async (req, res) => {
   const { job_id } = req.params;
@@ -711,9 +783,55 @@ router5.delete("/:job_id", async (req, res) => {
 });
 var cleanup_default = router5;
 
+// functions/debug.ts
+var import_express6 = __toESM(require("express"));
+init_postgresClient();
+init_logger();
+var router6 = import_express6.default.Router();
+router6.get("/", async (_req, res) => {
+  try {
+    const redis2 = getClient();
+    const pool = getPool();
+    const queueLen = await redis2.llen("ocr:queue").catch(() => -1);
+    const workerRunning = await redis2.get("ocr:worker:heartbeat") !== null;
+    const lastError = await redis2.get("ocr:worker:last_error");
+    const dbStats = await pool.query(`
+      SELECT status, COUNT(*) as count 
+        FROM jobs 
+       GROUP BY status
+    `).then((r) => r.rows).catch(() => []);
+    const env = {
+      isProduction: process.env.NODE_ENV === "production",
+      hasGemini: !!process.env.GEMINI_API_KEY,
+      hasRedis: !!(process.env.REDIS_URL || process.env.REDIS_HOST),
+      hasN8n: !!process.env.N8N_WEBHOOK_URL
+    };
+    res.status(200).json({
+      status: "online",
+      diagnostics: {
+        queue: { length: queueLen, healthy: queueLen >= 0 },
+        worker: { isActive: workerRunning, lastError },
+        database: { stats: dbStats },
+        environment: env
+      },
+      server: {
+        uptime: process.uptime(),
+        time: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+  } catch (err) {
+    logger.error("Debug stats failed", { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+var debug_default = router6;
+
 // functions/worker.ts
 var import_generative_ai = require("@google/generative-ai");
 var import_pdf_parse = __toESM(require("pdf-parse"));
+init_postgresClient();
+var Sentry = __toESM(require("@sentry/node"));
+init_logger();
 var POLL_INTERVAL = 3e3;
 var redis = getClient();
 var DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
@@ -748,7 +866,7 @@ async function extractTextWithGoogleCloud(buffer, mimeType, config) {
   if (!apiKey)
     throw new Error("Google Cloud OCR requires a Gemini API Key");
   const genAI = new import_generative_ai.GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   const inlineData = {
     data: buffer.toString("base64"),
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
@@ -811,35 +929,51 @@ async function processGemini(buffer, mimeType, config) {
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
   if (!apiKey)
     throw new Error("Gemini API key is required but missing");
+  let modelName = config?.modelName || "gemini-1.5-flash";
+  if (modelName.includes("2.5"))
+    modelName = "gemini-1.5-flash";
+  if (modelName === "gemini")
+    modelName = "gemini-1.5-flash";
   const genAI = new import_generative_ai.GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: config?.modelName || "gemini-2.5-flash",
+    model: modelName,
     generationConfig: {
       responseMimeType: "application/json"
     }
   });
-  const prompt = `You are a vehicle lease agreement expert. Extract structured data from this contract.
-RULES:
-1. Detect currency: \u20B9=INR, $=USD. Default to INR if \u20B9 or "Lakh" is found.
-2. Term math: Calculate duration strictly from start/end dates (e.g. 2024 to 2028 is 48 months).
-3. Extract financial values exactly. If missing, return null.
-4. Identifies Risks: GAP liability, 3x monthly residual risk, early termination penalties.
+  const prompt = `You are a legal-financial contract analyzer specialized in vehicle lease agreements.
+
+Your job is to extract, normalize, and interpret ALL financial and risk-related details from the document.
+
+IMPORTANT RULES:
+1. Do NOT assume missing values if they are indirectly stated.
+2. Detect hidden or ambiguous values (e.g., "45k/month with driver" = monthly payment 45000).
+3. Convert all financial strings into pure numbers. 
+4. Detect currency: \u20B9=INR, $=USD. Default to INR if \u20B9 or "Lakh" is found.
+5. If payment is written like "45k/month" \u2192 interpret as 45000.
+6. Term months: calculate duration strictly from dates if needed.
+7. NEVER output $0 for total or payment unless explicitly stated.
 
 STRICT JSON FORMAT:
 {
   "currency": "INR",
-  "monthly_payment": number,
-  "security_deposit": number,
-  "term_months": number,
-  "apr": number or null,
-  "residual_value": number or null,
-  "mileage_limit": number or null,
-  "penalties": "raw string of penalty keywords",
-  "risks": {
-    "gap_liability": boolean,
-    "early_termination_penalty": boolean,
-    "residual_risk_3x": boolean
-  },
+  "monthly_payment": number or null,
+  "term_months": number or null,
+  "total_cost": number or null,
+  "deposit": number or null,
+  "mileage": "string",
+  "residual_value": "string/rule",
+  "gap_liability": "string/who pays",
+  "maintenance": "string (Lessor/Lessee)",
+  "insurance": "string (Lessor/Lessee)",
+  "taxes": "string (Lessor/Lessee)",
+  "purchase_option": "boolean",
+  "penalties": ["list of strings"],
+  "financial_risk": "Low/Medium/High",
+  "legal_risk": "Low/Medium/High",
+  "fairness_score": number (0-100),
+  "confidence": number (0-100),
+  "issues_detected": ["list of strings"],
   "fairness_explanation": "short reasoning"
 }`;
   const inlineData = {
@@ -847,15 +981,20 @@ STRICT JSON FORMAT:
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
   };
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6e4);
     const response = await model.generateContent([
       { text: prompt },
       { inlineData }
     ]);
+    clearTimeout(timeoutId);
     const text = response.response.text();
     if (!text)
       throw new Error("Empty response from Gemini");
     return parseJsonResponse(text);
   } catch (err) {
+    if (err.name === "AbortError")
+      throw new Error("Gemini AI request timed out (60s limit reached)");
     logger.error("Gemini AI fetch failed", { error: err.message });
     throw new Error(`Gemini AI failed: ${err.message}`);
   }
@@ -926,37 +1065,40 @@ async function processJob(job) {
         throw new Error(`Unsupported AI Model: ${job.ai}`);
       }
     }
-    let score = 100;
-    if (sla.risks?.gap_liability)
-      score -= 15;
-    if (sla.risks?.residual_risk_3x)
-      score -= 20;
-    if (sla.risks?.early_termination_penalty)
-      score -= 10;
-    if (sla.mileage_limit && sla.mileage_limit < 1e4)
-      score -= 10;
-    if (sla.mileage_limit && sla.mileage_limit > 5e4)
-      score += 5;
-    if (sla.security_deposit > 0)
-      score += 5;
-    const fairness_score = Math.max(10, Math.min(100, score));
-    const dpFields = [sla.monthly_payment, sla.term_months, sla.security_deposit].filter((f) => f !== null).length;
-    const confidence = Math.round(dpFields / 3 * 100);
+    let fairness_score = sla.fairness_score || 70;
+    if (sla.financial_risk === "High")
+      fairness_score -= 15;
+    if (sla.legal_risk === "High")
+      fairness_score -= 10;
+    if (sla.maintenance === "Lessee")
+      fairness_score -= 5;
+    if (sla.insurance === "Lessee")
+      fairness_score -= 5;
+    fairness_score = Math.max(10, Math.min(100, fairness_score));
+    const confidence = sla.confidence || 70;
     const resultPayload = {
       sla: {
         ...sla,
+        apr: null,
+        // deprecated in new prompt but preserved for API
         term: sla.term_months,
-        // map for frontend
-        penalties: sla.penalties || sla.fairness_explanation
+        residual_value: typeof sla.residual_value === "string" ? null : sla.residual_value,
+        // compat
+        mileage_limit: typeof sla.mileage === "string" ? parseInt(sla.mileage) || null : sla.mileage,
+        // compat
+        penalties: Array.isArray(sla.penalties) ? sla.penalties.join(", ") : sla.fairness_explanation || "No penalties listed."
       },
       vin: null,
       price_estimate: {
-        market_value: sla.monthly_payment ? sla.monthly_payment * (sla.term_months || 48) : null,
+        market_value: sla.total_cost || (sla.monthly_payment ? sla.monthly_payment * (sla.term_months || 48) : null),
         confidence,
         currency: sla.currency || "INR"
       },
       fairness_score,
-      negotiation_tips: [sla.fairness_explanation || "Verify the residual clauses carefully."]
+      negotiation_tips: [
+        ...sla.issues_detected || [],
+        sla.fairness_explanation || "Verify the residual clauses carefully."
+      ].filter(Boolean)
     };
     await storeResult(job.job_id, resultPayload);
     await setJobStatus(job.job_id, "completed").catch(() => null);
@@ -967,18 +1109,38 @@ async function processJob(job) {
       message: err.message,
       stack: err.stack?.substring(0, 200)
     });
+    await redis.set("ocr:worker:last_error", `${(/* @__PURE__ */ new Date()).toISOString()} - ${err.message}`, "EX", 3600).catch(() => null);
+    Sentry.captureException(err);
     await setJobStatus(job.job_id, "failed").catch(() => null);
     await updateJobStatus(job.job_id, "failed").catch(() => null);
   }
 }
+async function healOrphanedJobs() {
+  try {
+    const pool = (init_postgresClient(), __toCommonJS(postgresClient_exports)).getPool();
+    const res = await pool.query(`
+      UPDATE jobs 
+         SET status = 'failed', updated_at = NOW()
+       WHERE status = 'processing' 
+         AND updated_at < NOW() - INTERVAL '5 minutes'
+    `);
+    if (res.rowCount > 0) {
+      logger.info(`Self-healing: recovered ${res.rowCount} orphaned processing jobs.`);
+    }
+  } catch (err) {
+    logger.warn("Self-healing check failed", { error: err.message });
+  }
+}
 function startWorker() {
   logger.info("Starting Background AI Worker engine...");
+  healOrphanedJobs().catch(() => null);
   setInterval(async () => {
     if (isWorking)
       return;
     try {
       isWorking = true;
-      const jobString = await redis.rpop("ocr:queue");
+      await redis.set("ocr:worker:heartbeat", "active", "EX", 10).catch(() => null);
+      const jobString = await redis.lpop("ocr:queue");
       if (jobString) {
         const job = JSON.parse(jobString);
         await processJob(job);
@@ -989,13 +1151,25 @@ function startWorker() {
       isWorking = false;
     }
   }, POLL_INTERVAL);
+  setInterval(() => {
+    if (!isWorking)
+      healOrphanedJobs().catch(() => null);
+  }, 3e5);
 }
 
 // functions/index.ts
-var app = (0, import_express6.default)();
+Sentry2.init({
+  dsn: "https://8cb99fb0212ca09a93a3abbcef59e90b@o4511106055208960.ingest.de.sentry.io/4511106111504464",
+  integrations: [
+    (0, import_profiling_node.nodeProfilingIntegration)()
+  ],
+  tracesSampleRate: 1,
+  profilesSampleRate: 1
+});
+var app = (0, import_express7.default)();
 var port = process.env.PORT || 1e4;
 app.use((0, import_cors.default)());
-app.use(import_express6.default.json());
+app.use(import_express7.default.json());
 app.get("/health", async (_req, res) => {
   try {
     const [dbResult, redisResult, storageResult] = await Promise.all([
@@ -1047,6 +1221,8 @@ app.use("/status", status_default);
 app.use("/process", process_default);
 app.use("/result", result_default);
 app.use("/cleanup", cleanup_default);
+app.use("/debug", debug_default);
+Sentry2.setupExpressErrorHandler(app);
 async function startServer() {
   try {
     logger.info("Initializing OCR Cloud Stack...");
