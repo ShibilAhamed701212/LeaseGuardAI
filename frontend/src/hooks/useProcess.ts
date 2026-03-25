@@ -11,7 +11,7 @@ interface UseProcessReturn {
 }
 
 const POLL_MS   = 2000;
-const MAX_POLLS = 90;
+const MAX_POLLS = 300; // 10 minutes max for complex leases
 
 export function useProcess(onComplete: () => void): UseProcessReturn {
   const [status,  setStatus]  = useState<JobStatus | null>(null);
