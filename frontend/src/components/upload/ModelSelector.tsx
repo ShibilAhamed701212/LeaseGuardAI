@@ -43,7 +43,7 @@ export function ModelSelector({ disabled }: ModelSelectorProps) {
           {AI_MODELS.map((m) => (
             <button key={m} disabled={disabled} type="button"
               className={`${styles.chip} ${styles.active}`}
-              >{'Gemini 2.5 Flash (Cloud Free)'}</button>
+              >{'Gemini 1.5 Flash (Cloud Free)'}</button>
           ))}
         </div>
       </div>

@@ -321,6 +321,9 @@ async function processJob(job: WorkerJob) {
       message: err.message,
       stack: err.stack?.substring(0, 200)
     });
+    // Store last error for /debug
+    await redis.set("ocr:worker:last_error", `${new Date().toISOString()} - ${err.message}`, "EX", 3600).catch(() => null);
+    
     await setJobStatus(job.job_id, "failed").catch(() => null);
     await updatePgStatus(job.job_id, "failed").catch(() => null);
   }

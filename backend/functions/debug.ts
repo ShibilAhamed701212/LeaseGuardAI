@@ -14,6 +14,7 @@ router.get("/", async (_req: Request, res: Response) => {
     // 1. Redis Stats
     const queueLen = await redis.llen("ocr:queue").catch(() => -1);
     const workerRunning = (await redis.get("ocr:worker:heartbeat")) !== null;
+    const lastError = await redis.get("ocr:worker:last_error");
 
     // 2. DB Stats
     const dbStats = await pool.query(`
@@ -34,7 +35,7 @@ router.get("/", async (_req: Request, res: Response) => {
       status: "online",
       diagnostics: {
         queue: { length: queueLen, healthy: queueLen >= 0 },
-        worker: { isActive: workerRunning },
+        worker: { isActive: workerRunning, lastError },
         database: { stats: dbStats },
         environment: env
       },
