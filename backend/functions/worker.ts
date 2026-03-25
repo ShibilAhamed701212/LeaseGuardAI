@@ -138,28 +138,39 @@ async function processGemini(buffer: Buffer, mimeType: string, config?: AiConfig
     }
   });
 
-  const prompt = `You are a vehicle lease agreement expert. Extract structured data from this contract.
-RULES:
-1. Detect currency: ₹=INR, $=USD. Default to INR if ₹ or "Lakh" is found.
-2. Term math: Calculate duration strictly from start/end dates (e.g. 2024 to 2028 is 48 months).
-3. Extract financial values exactly. If missing, return null.
-4. Identifies Risks: GAP liability, 3x monthly residual risk, early termination penalties.
+  const prompt = `You are a legal-financial contract analyzer specialized in vehicle lease agreements.
+
+Your job is to extract, normalize, and interpret ALL financial and risk-related details from the document.
+
+IMPORTANT RULES:
+1. Do NOT assume missing values if they are indirectly stated.
+2. Detect hidden or ambiguous values (e.g., "45k/month with driver" = monthly payment 45000).
+3. Convert all financial strings into pure numbers. 
+4. Detect currency: ₹=INR, $=USD. Default to INR if ₹ or "Lakh" is found.
+5. If payment is written like "45k/month" → interpret as 45000.
+6. Term months: calculate duration strictly from dates if needed.
+7. NEVER output $0 for total or payment unless explicitly stated.
 
 STRICT JSON FORMAT:
 {
   "currency": "INR",
-  "monthly_payment": number,
-  "security_deposit": number,
-  "term_months": number,
-  "apr": number or null,
-  "residual_value": number or null,
-  "mileage_limit": number or null,
-  "penalties": "raw string of penalty keywords",
-  "risks": {
-    "gap_liability": boolean,
-    "early_termination_penalty": boolean,
-    "residual_risk_3x": boolean
-  },
+  "monthly_payment": number or null,
+  "term_months": number or null,
+  "total_cost": number or null,
+  "deposit": number or null,
+  "mileage": "string",
+  "residual_value": "string/rule",
+  "gap_liability": "string/who pays",
+  "maintenance": "string (Lessor/Lessee)",
+  "insurance": "string (Lessor/Lessee)",
+  "taxes": "string (Lessor/Lessee)",
+  "purchase_option": "boolean",
+  "penalties": ["list of strings"],
+  "financial_risk": "Low/Medium/High",
+  "legal_risk": "Low/Medium/High",
+  "fairness_score": number (0-100),
+  "confidence": number (0-100),
+  "issues_detected": ["list of strings"],
   "fairness_explanation": "short reasoning"
 }`;
 
@@ -264,37 +275,40 @@ async function processJob(job: WorkerJob) {
       }
     }
 
-    // Rule-Based Fairness Scoring (Targeting 90%+ Accuracy)
-    let score = 100;
-    if (sla.risks?.gap_liability) score -= 15;
-    if (sla.risks?.residual_risk_3x) score -= 20;
-    if (sla.risks?.early_termination_penalty) score -= 10;
-    if (sla.mileage_limit && sla.mileage_limit < 10000) score -= 10;
+    // 1. Core Score from AI
+    let fairness_score = sla.fairness_score || 70;
     
-    // Bonuses
-    if (sla.mileage_limit && sla.mileage_limit > 50000) score += 5; // essentially unlimited
-    if (sla.security_deposit > 0) score += 5;
-
-    const fairness_score = Math.max(10, Math.min(100, score));
+    // 2. Penalty Adjustments (Strict Reasoning)
+    if (sla.financial_risk === "High") fairness_score -= 15;
+    if (sla.legal_risk === "High") fairness_score -= 10;
+    if (sla.maintenance === "Lessee") fairness_score -= 5;
+    if (sla.insurance === "Lessee") fairness_score -= 5;
+    
+    fairness_score = Math.max(10, Math.min(100, fairness_score));
 
     // Data Presence Confidence
-    const dpFields = [sla.monthly_payment, sla.term_months, sla.security_deposit].filter(f => f !== null).length;
-    const confidence = Math.round((dpFields / 3) * 100);
+    const confidence = sla.confidence || 70;
 
     const resultPayload = {
       sla: {
         ...sla,
-        term: sla.term_months, // map for frontend
-        penalties: sla.penalties || sla.fairness_explanation
+        apr: null, // deprecated in new prompt but preserved for API
+        term: sla.term_months,
+        residual_value: typeof sla.residual_value === "string" ? null : sla.residual_value, // compat
+        mileage_limit: typeof sla.mileage === "string" ? parseInt(sla.mileage) || null : sla.mileage, // compat
+        penalties: Array.isArray(sla.penalties) ? sla.penalties.join(", ") : (sla.fairness_explanation || "No penalties listed.")
       },
       vin: null,
       price_estimate: { 
-        market_value: sla.monthly_payment ? sla.monthly_payment * (sla.term_months || 48) : null, 
+        market_value: sla.total_cost || (sla.monthly_payment ? sla.monthly_payment * (sla.term_months || 48) : null), 
         confidence,
         currency: sla.currency || "INR"
       },
       fairness_score,
-      negotiation_tips: [sla.fairness_explanation || "Verify the residual clauses carefully."]
+      negotiation_tips: [
+        ...(sla.issues_detected || []),
+        sla.fairness_explanation || "Verify the residual clauses carefully."
+      ].filter(Boolean)
     };
 
     await storeResult(job.job_id, resultPayload);
