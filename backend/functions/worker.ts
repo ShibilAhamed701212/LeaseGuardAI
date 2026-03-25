@@ -233,6 +233,7 @@ async function processJob(job: WorkerJob) {
   logger.info(`Worker picked up job: ${job.job_id}`);
 
   try {
+    await setJobStatus(job.job_id, "reading_document").catch(() => null);
     const fileBuffer = await downloadFileBuffer(job.file_url);
     const isPdf = job.file_url.toLowerCase().includes(".pdf?");
     const mimeType = isPdf ? "application/pdf" : "image/jpeg";
@@ -240,12 +241,14 @@ async function processJob(job: WorkerJob) {
     let sla = null;
 
     if (job.ai === "gemini") {
+      await setJobStatus(job.job_id, "analyzing_contract").catch(() => null);
       // Gemini 1.5 natively supports multimodal OCR + extraction!
       sla = await processGemini(fileBuffer, mimeType, job.config);
     } else {
       // Require Text extraction for Ollama or Custom OpenAI
       let text = await extractTextWithPdfParse(fileBuffer, mimeType, job.config);
 
+      await setJobStatus(job.job_id, "analyzing_contract").catch(() => null);
       if (job.ai === "ollama") {
         sla = await processOllama(text, job.config);
       } else if (job.ai === "custom") {

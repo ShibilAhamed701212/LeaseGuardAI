@@ -25,10 +25,18 @@ export function Upload() {
   }, [jobId, navigate]);
 
   const { upload,  loading: uploading,  error: upErr  } = useUpload();
-  const { trigger, loading: processing, error: procErr } = useProcess(onComplete);
+  const { trigger, loading: processing, error: procErr, status: procStatus } = useProcess(onComplete);
 
   const isRunning = uploading || processing;
   const error     = upErr || procErr;
+
+  const getLoaderMessage = () => {
+    if (uploading) return "Uploading document...";
+    if (procStatus === "reading_document") return "Extracting and parsing document text...";
+    if (procStatus === "analyzing_contract") return "GenAI is analyzing complex lease clauses (may take 10-30s)...";
+    if (processing) return "Waiting for background processing slot...";
+    return undefined;
+  };
 
   const handleConfigChange = (updates: Partial<AiConfig>) => {
     setConfig(prev => ({ ...prev, ...updates }));
@@ -63,7 +71,7 @@ export function Upload() {
         </div>
       ) : (
         <div className={styles.loader}>
-          <Loader size="lg" cycling={processing} message={uploading ? "Uploading document..." : undefined} />
+          <Loader size="lg" cycling={processing} message={getLoaderMessage()} />
         </div>
       )}
     </main>

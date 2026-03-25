@@ -1,5 +1,5 @@
 const BASE=import.meta.env.VITE_API_BASE_URL as string
-export type JobStatus='uploaded'|'processing'|'completed'|'failed'|'deleted'
+export type JobStatus='uploaded'|'reading_document'|'analyzing_contract'|'processing'|'completed'|'failed'|'deleted'
 export interface UploadResponse{job_id:string;status:'uploaded'}
 export interface ProcessResponse{job_id:string;status:'processing'}
 export interface StatusResponse{job_id:string;status:JobStatus}
