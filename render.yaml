@@ -57,4 +57,6 @@ services:
         value: "3600"
       - key: REDIS_RESULT_TTL_SECONDS
         value: "86400"
+      - key: GEMINI_API_KEY
+        sync: false
     healthCheckPath: /health
