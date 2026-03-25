@@ -16,6 +16,7 @@
     "@aws-sdk/s3-request-presigner": "^3.541.0",
     "@google/generative-ai": "^0.24.1",
     "@sentry/node": "^10.46.0",
+    "@sentry/profiling-node": "^10.46.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.0.0",

@@ -1,12 +1,17 @@
 import express from "express";
 import cors from "cors";
 import * as Sentry from "@sentry/node";
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { logger } from "./utils/logger";
 
 // ── Sentry Initialization ─────────────────────────────────────
 Sentry.init({
   dsn: "https://8cb99fb0212ca09a93a3abbcef59e90b@o4511106055208960.ingest.de.sentry.io/4511106111504464",
+  integrations: [
+    nodeProfilingIntegration(),
+  ],
   tracesSampleRate: 1.0,
+  profilesSampleRate: 1.0,
 });
 import { 
   checkDBHealth as checkDatabaseHealth, 
