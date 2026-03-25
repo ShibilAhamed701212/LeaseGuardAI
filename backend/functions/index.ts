@@ -34,9 +34,6 @@ import debugHandler from "./debug";
 const app = express();
 const port = process.env.PORT || 10000;
 
-// 1. Sentry Request Handler (Must be the first middleware)
-app.use(Sentry.Handlers.requestHandler());
-
 // ── Basic Middleware ──────────────────────────────────────────
 
 app.use(cors());
@@ -102,8 +99,8 @@ app.use("/result", resultHandler);
 app.use("/cleanup", cleanupHandler);
 app.use("/debug", debugHandler);
 
-// 3. Sentry Error Handler (Must be before all other error middleware)
-app.use(Sentry.Handlers.errorHandler());
+// 3. Sentry Error Handler (V10 Setup)
+Sentry.setupExpressErrorHandler(app);
 
 // ── Initialization Logic ──────────────────────────────────────
 import { startWorker } from "./worker";
