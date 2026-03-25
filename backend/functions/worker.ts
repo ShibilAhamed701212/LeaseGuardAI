@@ -25,16 +25,30 @@ interface WorkerJob {
 const DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
 const DEFAULT_OLLAMA_URL = process.env.OLLAMA_HOST ? `http://${process.env.OLLAMA_HOST}:11434` : "http://localhost:11434";
 
-async function downloadFileBuffer(url: string): Promise<Buffer> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status} failed to fetch file`);
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  } catch (err: any) {
-    logger.error("File download failed", { url, error: err.message });
-    throw new Error(`Download failed: ${err.message}`);
+async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+async function downloadFileBuffer(url: string, retries = 3): Promise<Buffer> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (err: any) {
+      if (i === retries - 1) {
+        logger.error("File download failed permanently", { url, error: err.message });
+        throw new Error(`Download failed: ${err.message}`);
+      }
+      logger.warn(`Download retry ${i + 1}/${retries}`, { error: err.message });
+      await sleep(1000 * (i + 1));
+    }
   }
+  throw new Error("Download failed");
 }
 
 /** 
@@ -258,7 +272,10 @@ async function processJob(job: WorkerJob) {
     
     logger.info(`Worker completed job: ${job.job_id}`);
   } catch (err: any) {
-    logger.error(`Worker failed job: ${job.job_id}`, { message: err.message });
+    logger.error(`Worker failed job: ${job.job_id}`, { 
+      message: err.message,
+      stack: err.stack?.substring(0, 200)
+    });
     await setJobStatus(job.job_id, "failed").catch(() => null);
     await updatePgStatus(job.job_id, "failed").catch(() => null);
   }
