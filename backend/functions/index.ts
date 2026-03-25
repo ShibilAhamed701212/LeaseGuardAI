@@ -12,6 +12,7 @@ Sentry.init({
   ],
   tracesSampleRate: 1.0,
   profilesSampleRate: 1.0,
+  release: "v1.0.4-shield-final",
 });
 import { 
   checkDBHealth as checkDatabaseHealth, 

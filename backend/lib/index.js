@@ -1164,7 +1164,8 @@ Sentry2.init({
     (0, import_profiling_node.nodeProfilingIntegration)()
   ],
   tracesSampleRate: 1,
-  profilesSampleRate: 1
+  profilesSampleRate: 1,
+  release: "v1.0.4-shield-final"
 });
 var app = (0, import_express7.default)();
 var port = process.env.PORT || 1e4;
