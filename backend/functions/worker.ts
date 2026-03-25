@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import pdfParse from "pdf-parse";
 import { getClient, storeResult, setJobStatus } from "./utils/redisClient";
 import { updateJobStatus as updatePgStatus } from "./utils/postgresClient";
+import * as Sentry from "@sentry/node";
 import { logger } from "./utils/logger";
 
 const POLL_INTERVAL = 3000;
@@ -329,6 +330,9 @@ async function processJob(job: WorkerJob) {
     // Store last error for /debug
     await redis.set("ocr:worker:last_error", `${new Date().toISOString()} - ${err.message}`, "EX", 3600).catch(() => null);
     
+    // Capture to Sentry
+    Sentry.captureException(err);
+
     await setJobStatus(job.job_id, "failed").catch(() => null);
     await updatePgStatus(job.job_id, "failed").catch(() => null);
   }

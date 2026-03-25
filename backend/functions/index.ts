@@ -1,7 +1,13 @@
-// index.ts — OCR Server with Super-Diagnostics + Full API functionality
 import express from "express";
 import cors from "cors";
+import * as Sentry from "@sentry/node";
 import { logger } from "./utils/logger";
+
+// ── Sentry Initialization ─────────────────────────────────────
+Sentry.init({
+  dsn: "https://8cb99fb0212ca09a93a3abbcef59e90b@o4511106055208960.ingest.de.sentry.io/4511106111504464",
+  tracesSampleRate: 1.0,
+});
 import { 
   checkDBHealth as checkDatabaseHealth, 
   migrate, 
@@ -27,6 +33,9 @@ import debugHandler from "./debug";
 
 const app = express();
 const port = process.env.PORT || 10000;
+
+// 1. Sentry Request Handler (Must be the first middleware)
+app.use(Sentry.Handlers.requestHandler());
 
 // ── Basic Middleware ──────────────────────────────────────────
 
@@ -92,6 +101,9 @@ app.use("/process", processHandler);
 app.use("/result", resultHandler);
 app.use("/cleanup", cleanupHandler);
 app.use("/debug", debugHandler);
+
+// 3. Sentry Error Handler (Must be before all other error middleware)
+app.use(Sentry.Handlers.errorHandler());
 
 // ── Initialization Logic ──────────────────────────────────────
 import { startWorker } from "./worker";
