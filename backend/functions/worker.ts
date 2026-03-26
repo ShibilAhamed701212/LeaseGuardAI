@@ -61,7 +61,7 @@ async function extractTextWithGoogleCloud(buffer: Buffer, mimeType: string, conf
   if (!apiKey) throw new Error("Google Cloud OCR requires a Gemini API Key");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const inlineData = {
     data: buffer.toString("base64"),
@@ -131,10 +131,8 @@ async function processGemini(buffer: Buffer, mimeType: string, config?: AiConfig
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
   if (!apiKey) throw new Error("Gemini API key is required but missing");
 
-  // Safety Shield: Map invalid versions to stable gemini-1.5-flash
-  let modelName = config?.modelName || "gemini-1.5-flash";
-  if (modelName.includes("2.5")) modelName = "gemini-1.5-flash";
-  if (modelName === "gemini") modelName = "gemini-1.5-flash";
+  let modelName = config?.modelName || "gemini-2.0-flash";
+  if (modelName === "gemini") modelName = "gemini-2.0-flash";
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ 
