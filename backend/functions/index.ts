@@ -3,6 +3,7 @@ import cors from "cors";
 import * as Sentry from "@sentry/node";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { logger } from "./utils/logger";
+import { setupGlobalErrorHandlers, runDiagnostic } from "./utils/errorHandler";
 
 // ── Sentry Initialization ─────────────────────────────────────
 Sentry.init({
@@ -96,6 +97,28 @@ app.get("/health", async (_req, res) => {
   }
 });
 
+// ── Diagnostic Endpoints ────────────────────────────────────────
+
+app.get("/diagnostic", async (_req, res) => {
+  try {
+    const result = await runDiagnostic();
+    res.status(result.status === "healthy" ? 200 : result.status === "degraded" ? 200 : 503).json(result);
+  } catch (err: any) {
+    logger.error("Diagnostic endpoint failed", { error: err.message });
+    res.status(500).json({ status: "error", error: err.message });
+  }
+});
+
+app.get("/debug/predictions", (_req, res) => {
+  const { getBugPredictions } = require("./utils/logger");
+  res.json(getBugPredictions());
+});
+
+app.get("/debug/errors", (_req, res) => {
+  const { getErrorTracking } = require("./utils/errorHandler");
+  res.json(getErrorTracking());
+});
+
 // ── Actual API Routes ──────────────────────────────────────────
 
 app.use("/upload", uploadHandler);
@@ -137,15 +160,6 @@ async function startServer() {
   }
 }
 
-// ── Shutdown Logic ────────────────────────────────────────────
-
-process.on("SIGTERM", async () => {
-  logger.info("Shutting down gracefully...");
-  await closeRedis();
-  const pool = getPool();
-  if (pool) await pool.end();
-  process.exit(0);
-});
-
 // Run!
+setupGlobalErrorHandlers();
 startServer();

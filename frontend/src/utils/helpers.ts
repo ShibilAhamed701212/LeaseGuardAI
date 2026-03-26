@@ -1,5 +1,11 @@
 // utils/helpers.ts — shared utility functions
 
+import { trackError, trackUserAction, getBugPredictions as getPredictions, getSystemStatus as getStatus } from "./debugger";
+import type { BugPrediction } from "./debugger";
+
+export { trackError, trackUserAction, getPredictions as getBugPredictions, getStatus as getSystemStatus };
+export type { BugPrediction };
+
 export const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png", "image/webp"] as const;
 export type AllowedMime   = (typeof ALLOWED_MIME)[number];
 

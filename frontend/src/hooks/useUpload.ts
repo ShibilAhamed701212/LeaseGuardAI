@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { uploadFile } from "../services/api";
-import { friendlyError } from "../utils/helpers";
+import { friendlyError, trackError, trackUserAction } from "../utils/helpers";
 
 interface UseUploadReturn {
   upload:  (file: File) => Promise<string | null>;
@@ -18,11 +18,15 @@ export function useUpload(): UseUploadReturn {
   const upload = useCallback(async (file: File): Promise<string | null> => {
     setLoading(true);
     setError(null);
+    trackUserAction('upload_file', { fileName: file.name, fileSize: file.size });
     try {
       const { job_id } = await uploadFile(file);
+      trackUserAction('upload_complete', { job_id });
       return job_id;
     } catch (err) {
-      setError(friendlyError(err));
+      const msg = friendlyError(err);
+      setError(msg);
+      trackError(msg, undefined, { fileName: file.name }, 'useUpload');
       return null;
     } finally {
       setLoading(false);

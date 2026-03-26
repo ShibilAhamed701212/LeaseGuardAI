@@ -31,31 +31,254 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // functions/utils/logger.ts
+var logger_exports = {};
+__export(logger_exports, {
+  clearBugPredictions: () => clearBugPredictions,
+  closeLogger: () => closeLogger,
+  getBugPredictions: () => getBugPredictions,
+  getCrashReports: () => getCrashReports,
+  getDebugLogs: () => getDebugLogs,
+  getSystemHealth: () => getSystemHealth,
+  logger: () => logger,
+  recordCrash: () => recordCrash
+});
+function ensureLogDir() {
+  if (!fs.existsSync(LOG_DIR)) {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+  }
+}
+function getLogFilePath(date) {
+  const dateStr = date.toISOString().split("T")[0];
+  return path.join(LOG_DIR, `ocr-agent-${dateStr}.log`);
+}
+function rotateLogsIfNeeded() {
+  try {
+    const files = fs.readdirSync(LOG_DIR).filter((f) => f.startsWith("ocr-agent-") && f.endsWith(".log")).sort().reverse();
+    let totalSize = 0;
+    for (const file of files) {
+      const stat = fs.statSync(path.join(LOG_DIR, file));
+      totalSize += stat.size;
+    }
+    const totalSizeMB = totalSize / (1024 * 1024);
+    if (totalSizeMB > LOG_MAX_SIZE_MB * LOG_MAX_FILES) {
+      for (let i = files.length - 1; i >= LOG_MAX_FILES; i--) {
+        fs.unlinkSync(path.join(LOG_DIR, files[i]));
+      }
+    }
+  } catch (err) {
+    console.error("Log rotation failed:", err);
+  }
+}
+function getWriteStream() {
+  if (!logStream) {
+    ensureLogDir();
+    rotateLogsIfNeeded();
+    logStream = fs.createWriteStream(getLogFilePath(/* @__PURE__ */ new Date()), { flags: "a" });
+    logStream.on("error", (err) => {
+      console.error("Log stream error:", err);
+      logStream = null;
+    });
+  }
+  return logStream;
+}
+function logToFile(entry) {
+  if (!DEBUG_FILE)
+    return;
+  try {
+    const stream = getWriteStream();
+    stream.write(JSON.stringify(entry) + "\n");
+  } catch (err) {
+    console.error("Failed to write to log file:", err);
+  }
+}
+function detectBugPattern(error, context) {
+  const patterns = [
+    { pattern: /ECONNREFUSED/i, issue: "Redis/DB connection refused", severity: "critical", recommendation: "Check if Redis/PostgreSQL services are running" },
+    { pattern: /ETIMEDOUT|timeout/i, issue: "Connection timeout", severity: "medium", recommendation: "Increase timeout values or check network latency" },
+    { pattern: /out of memory|MEMORY/i, issue: "Memory exhaustion", severity: "critical", recommendation: "Scale up server or optimize memory usage" },
+    { pattern: /SQLITE.*locked|EBUSY/i, issue: "Database lock conflict", severity: "high", recommendation: "Use WAL mode or implement retry logic" },
+    { pattern: /invalid json|JSON/i, issue: "JSON parsing error", severity: "medium", recommendation: "Validate JSON before parsing, add try-catch" },
+    { pattern: /undefined.*property|is not a function/i, issue: "TypeError: undefined", severity: "high", recommendation: "Add null checks or optional chaining" },
+    { pattern: /401|unauthorized/i, issue: "Authentication failure", severity: "high", recommendation: "Verify API keys and tokens" },
+    { pattern: /429|rate limit/i, issue: "Rate limit exceeded", severity: "medium", recommendation: "Implement exponential backoff" },
+    { pattern: /disk full|ENOSPC/i, issue: "Disk space low", severity: "critical", recommendation: "Free up disk space or scale storage" },
+    { pattern: /max.*connections|pool.*exhausted/i, issue: "Connection pool exhausted", severity: "high", recommendation: "Increase pool size or implement connection pooling" }
+  ];
+  for (const { pattern, issue, severity, recommendation } of patterns) {
+    if (pattern.test(error)) {
+      const key = issue;
+      const existing = bugPredictions.get(key);
+      if (existing) {
+        existing.occurrenceCount++;
+        return existing;
+      }
+      return {
+        id: `bug-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        issue,
+        severity,
+        recommendation,
+        occurrenceCount: 1
+      };
+    }
+  }
+  return null;
+}
+function trackError(errorType) {
+  const count = errorCounts.get(errorType) || 0;
+  errorCounts.set(errorType, count + 1);
+  if (count > 5) {
+    const prediction = {
+      id: `recurring-${Date.now()}`,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      issue: `Recurring error: ${errorType}`,
+      severity: "high",
+      recommendation: `Error "${errorType}" occurred ${count} times - investigate root cause`,
+      occurrenceCount: count
+    };
+    bugPredictions.set(errorType, prediction);
+  }
+}
 function log(level, message, context) {
+  const stack = level === "error" || level === "critical" ? new Error().stack : void 0;
   const entry = {
     level,
     message,
-    context,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    context: sanitizeContext(context),
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    trace: stack
   };
-  const safe = JSON.stringify(entry);
+  logToFile(entry);
+  if (level === "error" || level === "critical") {
+    trackError(message);
+    const bug = detectBugPattern(message, context || {});
+    if (bug) {
+      bugPredictions.set(bug.issue, bug);
+    }
+  }
   if (level === "error") {
-    console.error(safe);
+    console.error(JSON.stringify(entry));
   } else if (level === "warn") {
-    console.warn(safe);
+    console.warn(JSON.stringify(entry));
+  } else if (level === "critical") {
+    console.error(`CRITICAL: ${JSON.stringify(entry)}`);
   } else {
-    console.log(safe);
+    console.log(JSON.stringify(entry));
   }
 }
-var logger;
+function sanitizeContext(context) {
+  if (!context)
+    return void 0;
+  const sensitive = ["password", "apiKey", "token", "secret", "creditCard", "ssn"];
+  const sanitized = {};
+  for (const [key, value] of Object.entries(context)) {
+    const lowerKey = key.toLowerCase();
+    if (sensitive.some((s) => lowerKey.includes(s))) {
+      sanitized[key] = "[REDACTED]";
+    } else if (typeof value === "string" && value.length > 1e3) {
+      sanitized[key] = value.substring(0, 1e3) + "...[truncated]";
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+function getDebugLogs(hours = 24) {
+  const logs = [];
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1e3);
+  try {
+    ensureLogDir();
+    const files = fs.readdirSync(LOG_DIR).filter((f) => f.startsWith("ocr-agent-") && f.endsWith(".log")).sort().reverse();
+    for (const file of files) {
+      const content = fs.readFileSync(path.join(LOG_DIR, file), "utf-8");
+      for (const line of content.split("\n")) {
+        if (!line.trim())
+          continue;
+        try {
+          const entry = JSON.parse(line);
+          if (new Date(entry.timestamp) >= cutoff) {
+            logs.push(entry);
+          }
+        } catch {
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to read debug logs:", err);
+  }
+  return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+function getBugPredictions() {
+  return Array.from(bugPredictions.values()).sort((a, b) => {
+    const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    return severityOrder[a.severity] - severityOrder[b.severity];
+  });
+}
+function getCrashReports() {
+  return crashReports;
+}
+function recordCrash(error, context, recoveryAction) {
+  const report = {
+    id: `crash-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    error: error.message,
+    stack: error.stack,
+    context: sanitizeContext(context) || {},
+    recoveryAction
+  };
+  crashReports.push(report);
+  if (crashReports.length > 100) {
+    crashReports = crashReports.slice(-100);
+  }
+  try {
+    const crashFile = path.join(LOG_DIR, `crash-${Date.now()}.json`);
+    fs.writeFileSync(crashFile, JSON.stringify(report, null, 2));
+  } catch (err) {
+    console.error("Failed to write crash report:", err);
+  }
+}
+function clearBugPredictions() {
+  bugPredictions.clear();
+  errorCounts.clear();
+}
+function getSystemHealth() {
+  const recentLogs = getDebugLogs(1);
+  const errors = recentLogs.filter((l) => l.level === "error" || l.level === "critical");
+  const total = recentLogs.length || 1;
+  return {
+    errorRate: errors.length / total * 100,
+    recentErrors: errors.slice(-10).map((e) => e.message),
+    bugPredictions: getBugPredictions(),
+    uptime: process.uptime(),
+    memoryUsage: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
+  };
+}
+function closeLogger() {
+  if (logStream) {
+    logStream.end();
+    logStream = null;
+  }
+}
+var fs, path, LOG_DIR, DEBUG_FILE, LOG_MAX_SIZE_MB, LOG_MAX_FILES, logStream, crashReports, bugPredictions, errorCounts, logger;
 var init_logger = __esm({
   "functions/utils/logger.ts"() {
     "use strict";
+    fs = __toESM(require("fs"));
+    path = __toESM(require("path"));
+    LOG_DIR = process.env.LOG_DIR || path.join(process.cwd(), "logs");
+    DEBUG_FILE = process.env.DEBUG_FILE === "true";
+    LOG_MAX_SIZE_MB = parseInt(process.env.LOG_MAX_SIZE_MB || "10", 10);
+    LOG_MAX_FILES = parseInt(process.env.LOG_MAX_FILES || "5", 10);
+    logStream = null;
+    crashReports = [];
+    bugPredictions = /* @__PURE__ */ new Map();
+    errorCounts = /* @__PURE__ */ new Map();
     logger = {
       info: (msg, ctx) => log("info", msg, ctx),
       warn: (msg, ctx) => log("warn", msg, ctx),
       error: (msg, ctx) => log("error", msg, ctx),
-      debug: (msg, ctx) => log("debug", msg, ctx)
+      debug: (msg, ctx) => log("debug", msg, ctx),
+      critical: (msg, ctx) => log("critical", msg, ctx)
     };
   }
 });
@@ -193,19 +416,19 @@ var init_postgresClient = __esm({
   }
 });
 
-// functions/index.ts
-var import_express7 = __toESM(require("express"));
-var import_cors = __toESM(require("cors"));
-var Sentry2 = __toESM(require("@sentry/node"));
-var import_profiling_node = require("@sentry/profiling-node");
-init_logger();
-init_postgresClient();
-
 // functions/utils/redisClient.ts
-var import_ioredis = __toESM(require("ioredis"));
-init_logger();
-var RESULT_TTL = parseInt(process.env.REDIS_RESULT_TTL_SECONDS ?? "86400", 10);
-var _client = null;
+var redisClient_exports = {};
+__export(redisClient_exports, {
+  checkRedisHealth: () => checkRedisHealth,
+  closeRedis: () => closeRedis,
+  deleteJobKeys: () => deleteJobKeys,
+  getClient: () => getClient,
+  getJobStatus: () => getJobStatus,
+  getResult: () => getResult,
+  pushJob: () => pushJob,
+  setJobStatus: () => setJobStatus,
+  storeResult: () => storeResult
+});
 function getClient() {
   if (_client)
     return _client;
@@ -308,6 +531,260 @@ async function checkRedisHealth() {
     return msg;
   }
 }
+var import_ioredis, RESULT_TTL, _client;
+var init_redisClient = __esm({
+  "functions/utils/redisClient.ts"() {
+    "use strict";
+    import_ioredis = __toESM(require("ioredis"));
+    init_logger();
+    RESULT_TTL = parseInt(process.env.REDIS_RESULT_TTL_SECONDS ?? "86400", 10);
+    _client = null;
+  }
+});
+
+// functions/utils/errorHandler.ts
+var errorHandler_exports = {};
+__export(errorHandler_exports, {
+  clearErrorTracking: () => clearErrorTracking,
+  getErrorTracking: () => getErrorTracking,
+  getRecoveryActions: () => getRecoveryActions,
+  runDiagnostic: () => runDiagnostic,
+  setupGlobalErrorHandlers: () => setupGlobalErrorHandlers
+});
+function trackError2(errorType) {
+  const now = /* @__PURE__ */ new Date();
+  let tracker = errorTrackers.get(errorType);
+  if (!tracker) {
+    tracker = {
+      error: errorType,
+      count: 0,
+      lastOccurrence: now,
+      consecutiveFailures: 0,
+      isRecovering: false
+    };
+    errorTrackers.set(errorType, tracker);
+  }
+  const timeSinceLastError = now.getTime() - tracker.lastOccurrence.getTime();
+  if (timeSinceLastError > ERROR_WINDOW_MS) {
+    tracker.consecutiveFailures = 0;
+  }
+  tracker.count++;
+  tracker.lastOccurrence = now;
+  tracker.consecutiveFailures++;
+  const shouldRecover = tracker.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES;
+  return { shouldRecover, tracker };
+}
+async function executeRecovery(tracker) {
+  if (tracker.isRecovering) {
+    return "Already recovering";
+  }
+  const now = Date.now();
+  if (now - lastRecoveryTime < RECOVERY_COOLDOWN_MS) {
+    return "Recovery cooldown active";
+  }
+  tracker.isRecovering = true;
+  lastRecoveryTime = now;
+  logger.warn("Starting automatic recovery", { error: tracker.error, count: tracker.consecutiveFailures });
+  let lastError = "";
+  for (const action of recoveryActions) {
+    try {
+      await action.execute();
+      logger.info(`Recovery action completed: ${action.name}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      logger.error(`Recovery action failed: ${action.name}`, { error: lastError });
+    }
+  }
+  tracker.isRecovering = false;
+  tracker.consecutiveFailures = 0;
+  return lastError || "Recovery completed";
+}
+function setupGlobalErrorHandlers() {
+  process.on("uncaughtException", (error) => {
+    logger.critical("Uncaught Exception", {
+      error: error.message,
+      stack: error.stack
+    });
+    recordCrash(error, { type: "uncaughtException" }, "process restart required");
+    if (!isShuttingDown) {
+      isShuttingDown = true;
+      logger.info("Shutting down gracefully after uncaught exception...");
+      setTimeout(() => process.exit(1), 5e3);
+    }
+  });
+  process.on("unhandledRejection", (reason, promise) => {
+    const errorMsg = reason instanceof Error ? reason.message : String(reason);
+    logger.error("Unhandled Promise Rejection", {
+      error: errorMsg,
+      reason: String(reason)
+    });
+    if (reason instanceof Error) {
+      recordCrash(reason, { type: "unhandledRejection" });
+    }
+    const { shouldRecover, tracker } = trackError2(errorMsg);
+    if (shouldRecover) {
+      logger.warn("Triggering automatic recovery due to repeated failures", {
+        error: errorMsg,
+        failures: tracker.consecutiveFailures
+      });
+      executeRecovery(tracker);
+    }
+  });
+  process.on("SIGTERM", async () => {
+    logger.info("SIGTERM received, graceful shutdown");
+    isShuttingDown = true;
+    await gracefulShutdown();
+  });
+  process.on("SIGINT", async () => {
+    logger.info("SIGINT received, graceful shutdown");
+    isShuttingDown = true;
+    await gracefulShutdown();
+  });
+  process.on("beforeExit", (code) => {
+    logger.info("Process exiting", { code });
+  });
+  logger.info("Global error handlers initialized");
+}
+async function gracefulShutdown() {
+  try {
+    await closeRedis();
+    await closePool();
+    logger.info("Graceful shutdown complete");
+  } catch (err) {
+    logger.error("Error during shutdown", { error: String(err) });
+  } finally {
+    process.exit(0);
+  }
+}
+function getErrorTracking() {
+  return Array.from(errorTrackers.values()).map((t) => ({
+    error: t.error,
+    count: t.count,
+    lastOccurrence: t.lastOccurrence.toISOString(),
+    isRecovering: t.isRecovering
+  }));
+}
+function clearErrorTracking() {
+  errorTrackers.clear();
+}
+function getRecoveryActions() {
+  return recoveryActions;
+}
+async function runDiagnostic() {
+  const checks = [];
+  try {
+    const pool = getPool();
+    await pool.query("SELECT 1");
+    checks.push({ name: "database", status: "ok", message: "PostgreSQL connected", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  } catch (err) {
+    checks.push({ name: "database", status: "error", message: String(err), timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  }
+  try {
+    const redis2 = getClient();
+    await redis2.ping();
+    checks.push({ name: "redis", status: "ok", message: "Redis connected", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  } catch (err) {
+    checks.push({ name: "redis", status: "error", message: String(err), timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  }
+  const memUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+  const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+  checks.push({
+    name: "memory",
+    status: heapUsedMB > heapTotalMB * 0.9 ? "warning" : "ok",
+    message: `Heap: ${heapUsedMB}MB / ${heapTotalMB}MB`,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  checks.push({
+    name: "uptime",
+    status: "ok",
+    message: `${Math.round(process.uptime())}s`,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  const errorCount = Array.from(errorTrackers.values()).reduce((sum, t) => sum + t.count, 0);
+  if (errorCount > 10) {
+    checks.push({ name: "errors", status: "warning", message: `${errorCount} errors tracked`, timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  } else if (errorCount > 0) {
+    checks.push({ name: "errors", status: "ok", message: `${errorCount} errors tracked`, timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  } else {
+    checks.push({ name: "errors", status: "ok", message: "No errors", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  }
+  const hasError = checks.some((c) => c.status === "error");
+  const hasWarning = checks.some((c) => c.status === "warning");
+  return {
+    status: hasError ? "unhealthy" : hasWarning ? "degraded" : "healthy",
+    checks,
+    predictions: getBugPredictions(),
+    errorTracking: getErrorTracking()
+  };
+}
+var errorTrackers, MAX_CONSECUTIVE_FAILURES, ERROR_WINDOW_MS, RECOVERY_COOLDOWN_MS, isShuttingDown, lastRecoveryTime, recoveryActions;
+var init_errorHandler = __esm({
+  "functions/utils/errorHandler.ts"() {
+    "use strict";
+    init_logger();
+    init_postgresClient();
+    init_redisClient();
+    errorTrackers = /* @__PURE__ */ new Map();
+    MAX_CONSECUTIVE_FAILURES = 3;
+    ERROR_WINDOW_MS = 6e4;
+    RECOVERY_COOLDOWN_MS = 3e4;
+    isShuttingDown = false;
+    lastRecoveryTime = 0;
+    recoveryActions = [
+      {
+        name: "reconnect_database",
+        description: "Close and recreate PostgreSQL connection pool",
+        execute: async () => {
+          await closePool();
+          const { getPool: \u91CD\u65B0\u83B7\u53D6\u6C60 } = await Promise.resolve().then(() => (init_postgresClient(), postgresClient_exports));
+          \u91CD\u65B0\u83B7\u53D6\u6C60();
+          logger.info("Database reconnected via recovery");
+        }
+      },
+      {
+        name: "reconnect_redis",
+        description: "Close and recreate Redis connection",
+        execute: async () => {
+          await closeRedis();
+          const { getClient: \u91CD\u65B0\u83B7\u53D6Redis } = await Promise.resolve().then(() => (init_redisClient(), redisClient_exports));
+          \u91CD\u65B0\u83B7\u53D6Redis();
+          logger.info("Redis reconnected via recovery");
+        }
+      },
+      {
+        name: "clear_queues",
+        description: "Clear stuck processing queues",
+        execute: async () => {
+          const redis2 = getClient();
+          await redis2.del("ocr:queue:stuck");
+          await redis2.del("ocr:processing");
+          logger.info("Cleared stuck queues");
+        }
+      },
+      {
+        name: "reset_memory",
+        description: "Force garbage collection if available",
+        execute: async () => {
+          if (global.gc) {
+            global.gc();
+            logger.info("Garbage collection triggered");
+          }
+        }
+      }
+    ];
+  }
+});
+
+// functions/index.ts
+var import_express7 = __toESM(require("express"));
+var import_cors = __toESM(require("cors"));
+var Sentry2 = __toESM(require("@sentry/node"));
+var import_profiling_node = require("@sentry/profiling-node");
+init_logger();
+init_errorHandler();
+init_postgresClient();
+init_redisClient();
 
 // functions/utils/minioClient.ts
 var import_client_s3 = require("@aws-sdk/client-s3");
@@ -535,6 +1012,7 @@ var upload_default = router;
 
 // functions/status/index.ts
 var import_express2 = __toESM(require("express"));
+init_redisClient();
 init_postgresClient();
 init_logger();
 var router2 = import_express2.default.Router();
@@ -566,6 +1044,7 @@ var status_default = router2;
 // functions/process/index.ts
 var import_express3 = __toESM(require("express"));
 init_postgresClient();
+init_redisClient();
 
 // functions/utils/n8nClient.ts
 var import_axios = __toESM(require("axios"));
@@ -686,6 +1165,7 @@ var process_default = router3;
 
 // functions/result/index.ts
 var import_express4 = __toESM(require("express"));
+init_redisClient();
 init_postgresClient();
 init_logger();
 var router4 = import_express4.default.Router();
@@ -734,6 +1214,7 @@ var result_default = router4;
 
 // functions/cleanup/index.ts
 var import_express5 = __toESM(require("express"));
+init_redisClient();
 init_postgresClient();
 init_logger();
 var router5 = import_express5.default.Router();
@@ -785,8 +1266,10 @@ var cleanup_default = router5;
 
 // functions/debug.ts
 var import_express6 = __toESM(require("express"));
+init_redisClient();
 init_postgresClient();
 init_logger();
+init_errorHandler();
 var router6 = import_express6.default.Router();
 router6.get("/", async (_req, res) => {
   try {
@@ -806,13 +1289,29 @@ router6.get("/", async (_req, res) => {
       hasRedis: !!(process.env.REDIS_URL || process.env.REDIS_HOST),
       hasN8n: !!process.env.N8N_WEBHOOK_URL
     };
+    const systemHealth = getSystemHealth();
+    const bugPredictions2 = getBugPredictions();
+    const errorTracking = getErrorTracking();
     res.status(200).json({
       status: "online",
       diagnostics: {
         queue: { length: queueLen, healthy: queueLen >= 0 },
         worker: { isActive: workerRunning, lastError },
         database: { stats: dbStats },
-        environment: env
+        environment: env,
+        systemHealth: {
+          errorRate: systemHealth.errorRate.toFixed(2) + "%",
+          memoryUsage: systemHealth.memoryUsage + "MB",
+          uptime: Math.round(systemHealth.uptime) + "s",
+          recentErrors: systemHealth.recentErrors
+        },
+        bugPredictions: bugPredictions2.map((b) => ({
+          issue: b.issue,
+          severity: b.severity,
+          recommendation: b.recommendation,
+          occurrenceCount: b.occurrenceCount
+        })),
+        errorTracking
       },
       server: {
         uptime: process.uptime(),
@@ -824,11 +1323,47 @@ router6.get("/", async (_req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router6.get("/logs", async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours) || 24;
+    const level = req.query.level;
+    let logs = getDebugLogs(hours);
+    if (level) {
+      logs = logs.filter((l) => l.level === level);
+    }
+    res.json({
+      count: logs.length,
+      logs: logs.slice(-100)
+    });
+  } catch (err) {
+    logger.error("Debug logs failed", { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+router6.get("/health", async (_req, res) => {
+  try {
+    const result = await runDiagnostic();
+    const httpStatus = result.status === "healthy" ? 200 : result.status === "degraded" ? 200 : 503;
+    res.status(httpStatus).json(result);
+  } catch (err) {
+    logger.error("Health check failed", { error: err.message });
+    res.status(500).json({ status: "error", error: err.message });
+  }
+});
+router6.get("/predictions", (_req, res) => {
+  const predictions = getBugPredictions();
+  res.json({ count: predictions.length, predictions });
+});
+router6.get("/errors", (_req, res) => {
+  const tracking = getErrorTracking();
+  res.json({ count: tracking.length, errors: tracking });
+});
 var debug_default = router6;
 
 // functions/worker.ts
 var import_generative_ai = require("@google/generative-ai");
 var import_pdf_parse = __toESM(require("pdf-parse"));
+init_redisClient();
 init_postgresClient();
 var Sentry = __toESM(require("@sentry/node"));
 init_logger();
@@ -1217,6 +1752,23 @@ app.get("/health", async (_req, res) => {
     res.status(500).json({ status: "error", error: err.message });
   }
 });
+app.get("/diagnostic", async (_req, res) => {
+  try {
+    const result = await runDiagnostic();
+    res.status(result.status === "healthy" ? 200 : result.status === "degraded" ? 200 : 503).json(result);
+  } catch (err) {
+    logger.error("Diagnostic endpoint failed", { error: err.message });
+    res.status(500).json({ status: "error", error: err.message });
+  }
+});
+app.get("/debug/predictions", (_req, res) => {
+  const { getBugPredictions: getBugPredictions2 } = (init_logger(), __toCommonJS(logger_exports));
+  res.json(getBugPredictions2());
+});
+app.get("/debug/errors", (_req, res) => {
+  const { getErrorTracking: getErrorTracking2 } = (init_errorHandler(), __toCommonJS(errorHandler_exports));
+  res.json(getErrorTracking2());
+});
 app.use("/upload", upload_default);
 app.use("/status", status_default);
 app.use("/process", process_default);
@@ -1240,12 +1792,5 @@ async function startServer() {
     });
   }
 }
-process.on("SIGTERM", async () => {
-  logger.info("Shutting down gracefully...");
-  await closeRedis();
-  const pool = getPool();
-  if (pool)
-    await pool.end();
-  process.exit(0);
-});
+setupGlobalErrorHandlers();
 startServer();

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { processDocument, getStatus, type JobStatus } from "../services/api";
-import { friendlyError } from "../utils/helpers";
+import { friendlyError, trackError, trackUserAction } from "../utils/helpers";
 import type { AiConfig } from "../components/upload/ModelSelector";
 
 interface UseProcessReturn {
@@ -26,6 +26,7 @@ export function useProcess(onComplete: (jobId: string) => void): UseProcessRetur
   const trigger = useCallback(async (job_id: string, ocr: string, ai: string, config?: AiConfig) => {
     setLoading(true);
     setError(null);
+    trackUserAction('process_start', { job_id, ocr, ai });
     try {
       await processDocument(job_id, ocr, ai, config);
       setStatus("processing");
@@ -35,14 +36,37 @@ export function useProcess(onComplete: (jobId: string) => void): UseProcessRetur
         try {
           const { status: s } = await getStatus(job_id);
           setStatus(s);
-          if (s === "completed") { stop(); setLoading(false); onComplete(job_id); }
-          if (s === "failed")    { stop(); setLoading(false); setError("Processing failed on server."); }
-          if (polls >= MAX_POLLS){ stop(); setLoading(false); setError("Processing timed out. Please retry."); }
-        } catch (e) { stop(); setLoading(false); setError(friendlyError(e)); }
+          if (s === "completed") { 
+            stop(); 
+            setLoading(false); 
+            trackUserAction('process_complete', { job_id });
+            onComplete(job_id); 
+          }
+          if (s === "failed")    { 
+            stop(); 
+            setLoading(false); 
+            setError("Processing failed on server.");
+            trackError("Processing failed", undefined, { job_id }, 'useProcess');
+          }
+          if (polls >= MAX_POLLS){ 
+            stop(); 
+            setLoading(false); 
+            setError("Processing timed out. Please retry.");
+            trackError("Processing timeout", undefined, { job_id, polls }, 'useProcess');
+          }
+        } catch (e) { 
+          stop(); 
+          setLoading(false); 
+          const msg = friendlyError(e);
+          setError(msg);
+          trackError(msg, undefined, { job_id }, 'useProcess');
+        }
       }, POLL_MS);
     } catch (err) {
       setLoading(false);
-      setError(friendlyError(err));
+      const msg = friendlyError(err);
+      setError(msg);
+      trackError(msg, undefined, { job_id, ocr, ai }, 'useProcess');
     }
   }, [onComplete]);
 
