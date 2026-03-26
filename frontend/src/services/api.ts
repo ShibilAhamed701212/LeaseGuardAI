@@ -3,9 +3,29 @@ export type JobStatus='uploaded'|'reading_document'|'analyzing_contract'|'proces
 export interface UploadResponse{job_id:string;status:'uploaded'}
 export interface ProcessResponse{job_id:string;status:'processing'}
 export interface StatusResponse{job_id:string;status:JobStatus}
-export interface SlaData{apr:number|null;monthly_payment:number|null;term:number|null;residual_value:number|null;mileage_limit:number|null;penalties:string|null}
+export interface SlaData {
+  currency?: string | null;
+  monthly_payment: number | null;
+  term: number | null;
+  term_months?: number | null;
+  total_cost?: number | null;
+  deposit?: number | null;
+  mileage?: string | null;
+  residual_value: string | number | null;
+  gap_liability?: string | null;
+  maintenance?: string | null;
+  insurance?: string | null;
+  taxes?: string | null;
+  purchase_option?: boolean | null;
+  penalties: string | string[] | null;
+  financial_risk?: string | null;
+  legal_risk?: string | null;
+  fairness_explanation?: string | null;
+  apr?: number | null;
+  mileage_limit?: number | null;
+}
 export interface VinData{vin:string;make:string;model:string;year:number}
-export interface PriceEstimate{market_value:number;confidence:number}
+export interface PriceEstimate{market_value:number;confidence:number;currency?:string}
 export interface ResultData{sla:SlaData;vin:VinData|null;price_estimate:PriceEstimate|null;fairness_score:number|null;negotiation_tips:string[]}
 interface RawResult{job_id:string;status:'completed';data:ResultData}
 export interface ResultPayload extends ResultData{job_id:string}

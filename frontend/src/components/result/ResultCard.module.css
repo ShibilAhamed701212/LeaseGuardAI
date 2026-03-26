@@ -18,5 +18,14 @@
 .scoreNum{font-size:1.5rem;font-weight:800;color:var(--text)}
 .scoreOf{font-size:0.75rem;color:var(--text-muted);font-weight:400}
 .scoreHint{font-size:0.82rem}
-.tips{list-style:none;display:flex;flex-direction:column;gap:0.5rem}
+.tips{list-style:none;display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem}
 .tip{padding:0.6rem 0.9rem;background:var(--surface-hover);border-radius:8px;border-left:2px solid var(--accent);font-size:0.875rem;color:var(--text);line-height:1.5}
+
+.riskHeader { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem; }
+.riskBadges { display: flex; gap: 0.5rem; }
+.badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; font-weight: 700; color: white; }
+.low { background: var(--success); }
+.medium { background: var(--warning); color: black; }
+.high { background: var(--danger); }
+
+.penaltiesText { font-size: 0.9rem; color: var(--text-dim); line-height: 1.4; font-style: italic; border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 0.5rem; }
