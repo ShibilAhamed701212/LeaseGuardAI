@@ -1484,7 +1484,7 @@ async function extractTextWithGoogleCloud(buffer, mimeType, config) {
   if (!apiKey)
     throw new Error("Google Cloud OCR requires a Gemini API Key");
   const genAI = new import_generative_ai2.GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   const inlineData = {
     data: buffer.toString("base64"),
     mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType.startsWith("image/") ? mimeType : "image/jpeg"
