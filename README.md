@@ -642,6 +642,17 @@ Required repository secrets:
 - `storage/storageService.ts` — abstraction layer, `getDocumentSummaries()`, `documentExists()`
 - `storage/index.ts` — barrel export replacing the old simple storage shim
 
+## Project Governance
+
+To ensure a professional and transparent development environment, this project follows several guidelines:
+
+- **[LICENSE](LICENSE)**: Licensed under the MIT License.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Guidelines for contributing to the project.
+- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)**: Standards of behavior for our community.
+- **[SECURITY.md](SECURITY.md)**: How to report security vulnerabilities.
+
+---
+
 ## Contributing
 
 1. Fork the repository and create a feature branch: `git checkout -b feat/your-feature`
@@ -649,6 +660,8 @@ Required repository secrets:
 3. Run Docker Compose to verify the full stack works end-to-end
 4. Open a pull request against `main`
 
+---
+
 ## License
 
-This project is private. All rights reserved.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
