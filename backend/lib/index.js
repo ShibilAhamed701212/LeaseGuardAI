@@ -777,7 +777,7 @@ var init_errorHandler = __esm({
 });
 
 // functions/index.ts
-var import_express7 = __toESM(require("express"));
+var import_express8 = __toESM(require("express"));
 var import_cors = __toESM(require("cors"));
 var Sentry2 = __toESM(require("@sentry/node"));
 var import_profiling_node = require("@sentry/profiling-node");
@@ -1360,8 +1360,91 @@ router6.get("/errors", (_req, res) => {
 });
 var debug_default = router6;
 
-// functions/worker.ts
+// functions/chat/index.ts
+var import_express7 = __toESM(require("express"));
 var import_generative_ai = require("@google/generative-ai");
+init_logger();
+var router7 = import_express7.default.Router();
+var GEMINI_KEY = process.env.GEMINI_API_KEY || "";
+var SYSTEM_PROMPT = `You are LeaseGuard AI \u2014 an expert lease contract negotiation coach.
+
+Your purpose:
+1. Answer questions about lease contracts in plain, friendly language.
+2. Provide actionable negotiation tactics and counter-offer strategies.
+3. Explain legal and financial terms found in lease agreements.
+4. Help users identify red flags, hidden fees, and unfair clauses.
+5. Role-play as a negotiation partner so the user can practice.
+
+Rules:
+- Keep answers concise (2-4 paragraphs max) unless the user asks for detail.
+- Use bullet points for action items.
+- If the user shares contract data, reference specific numbers and clauses.
+- Always be helpful, never dismissive. If unsure, say so honestly.
+- Format responses with markdown for readability.
+- When role-playing negotiation, clearly label "You could say:" sections.`;
+router7.post("/", async (req, res) => {
+  const { message, history, contract_context } = req.body;
+  if (!message || typeof message !== "string" || message.trim().length === 0) {
+    res.status(400).json({ error: "message is required" });
+    return;
+  }
+  if (!GEMINI_KEY) {
+    res.status(503).json({ error: "AI service is not configured" });
+    return;
+  }
+  try {
+    const genAI = new import_generative_ai.GoogleGenerativeAI(GEMINI_KEY);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash"
+    });
+    let contextBlock = "";
+    if (contract_context) {
+      contextBlock = `
+
+The user has analyzed a lease contract. Here is the extracted data:
+\`\`\`json
+${JSON.stringify(contract_context, null, 2)}
+\`\`\`
+Use this data to give specific, personalized advice.`;
+    }
+    const chatHistory = (history || []).map((msg) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }]
+    }));
+    const chat = model.startChat({
+      history: [
+        {
+          role: "user",
+          parts: [{ text: SYSTEM_PROMPT + contextBlock }]
+        },
+        {
+          role: "model",
+          parts: [{ text: "Understood! I'm LeaseGuard AI, your lease negotiation coach. I'm ready to help you understand your contract, identify risks, and practice negotiation strategies. What would you like to know?" }]
+        },
+        ...chatHistory
+      ]
+    });
+    const result = await chat.sendMessage(message);
+    const reply = result.response.text();
+    if (!reply) {
+      res.status(500).json({ error: "AI returned an empty response" });
+      return;
+    }
+    logger.info("Chat response generated", { messageLen: message.length, replyLen: reply.length });
+    res.status(200).json({
+      reply,
+      tokens_used: reply.length
+      // approximate
+    });
+  } catch (err) {
+    logger.error("Chat endpoint error", { error: err.message });
+    res.status(500).json({ error: "Failed to generate response. Please try again." });
+  }
+});
+var chat_default = router7;
+
+// functions/worker.ts
+var import_generative_ai2 = require("@google/generative-ai");
 var import_pdf_parse = __toESM(require("pdf-parse"));
 init_redisClient();
 init_postgresClient();
@@ -1400,7 +1483,7 @@ async function extractTextWithGoogleCloud(buffer, mimeType, config) {
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
   if (!apiKey)
     throw new Error("Google Cloud OCR requires a Gemini API Key");
-  const genAI = new import_generative_ai.GoogleGenerativeAI(apiKey);
+  const genAI = new import_generative_ai2.GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   const inlineData = {
     data: buffer.toString("base64"),
@@ -1464,12 +1547,10 @@ async function processGemini(buffer, mimeType, config) {
   const apiKey = config?.apiKey || DEFAULT_GEMINI_KEY;
   if (!apiKey)
     throw new Error("Gemini API key is required but missing");
-  let modelName = config?.modelName || "gemini-1.5-flash";
-  if (modelName.includes("2.5"))
-    modelName = "gemini-1.5-flash";
+  let modelName = config?.modelName || "gemini-2.5-flash";
   if (modelName === "gemini")
-    modelName = "gemini-1.5-flash";
-  const genAI = new import_generative_ai.GoogleGenerativeAI(apiKey);
+    modelName = "gemini-2.5-flash";
+  const genAI = new import_generative_ai2.GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: modelName,
     generationConfig: {
@@ -1702,10 +1783,10 @@ Sentry2.init({
   profilesSampleRate: 1,
   release: "v1.0.4-shield-final"
 });
-var app = (0, import_express7.default)();
+var app = (0, import_express8.default)();
 var port = process.env.PORT || 1e4;
 app.use((0, import_cors.default)());
-app.use(import_express7.default.json());
+app.use(import_express8.default.json());
 app.get("/health", async (_req, res) => {
   try {
     const [dbResult, redisResult, storageResult] = await Promise.all([
@@ -1775,6 +1856,7 @@ app.use("/process", process_default);
 app.use("/result", result_default);
 app.use("/cleanup", cleanup_default);
 app.use("/debug", debug_default);
+app.use("/chat", chat_default);
 Sentry2.setupExpressErrorHandler(app);
 async function startServer() {
   try {

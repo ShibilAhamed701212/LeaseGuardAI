@@ -124,3 +124,26 @@ export async function getResult(job_id: string): Promise<ResultPayload> {
 export const cleanup = (job_id: string) => req<CleanupResponse>('/cleanup/' + job_id, {
   method: 'DELETE'
 });
+
+// ── Chat API ───────────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  tokens_used?: number;
+}
+
+export async function sendChatMessage(
+  message: string,
+  history?: ChatMessage[],
+  contract_context?: Record<string, unknown> | null
+): Promise<ChatResponse> {
+  return req<ChatResponse>('/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, history, contract_context })
+  });
+}

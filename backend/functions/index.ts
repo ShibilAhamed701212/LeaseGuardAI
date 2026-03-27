@@ -37,6 +37,7 @@ import processHandler from "./process";
 import resultHandler from "./result";
 import cleanupHandler from "./cleanup";
 import debugHandler from "./debug";
+import chatHandler from "./chat";
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -127,6 +128,7 @@ app.use("/process", processHandler);
 app.use("/result", resultHandler);
 app.use("/cleanup", cleanupHandler);
 app.use("/debug", debugHandler);
+app.use("/chat", chatHandler);
 
 // 3. Sentry Error Handler (V10 Setup)
 Sentry.setupExpressErrorHandler(app);

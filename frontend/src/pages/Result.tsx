@@ -3,14 +3,25 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ResultCard } from "../components/result/ResultCard";
 import { Loader }     from "../components/shared/Loader";
 import { useResult }  from "../hooks/useResult";
+import type { ResultPayload } from "../services/api";
 import styles from "./Result.module.css";
 
-export function Result() {
+interface ResultProps {
+  onResultLoaded?: (result: ResultPayload) => void;
+}
+
+export function Result({ onResultLoaded }: ResultProps) {
   const { job_id }  = useParams<{ job_id: string }>();
   const navigate    = useNavigate();
   const { fetch, result, loading, error } = useResult();
 
   useEffect(() => { if (job_id) fetch(job_id); }, [job_id]);
+
+  useEffect(() => {
+    if (result && onResultLoaded) {
+      onResultLoaded(result);
+    }
+  }, [result, onResultLoaded]);
 
   if (loading) return (
     <main className="page"><Loader size="lg" message="Fetching result and saving locally…" /></main>
