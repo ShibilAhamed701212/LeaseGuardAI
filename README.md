@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/analyse_document.png" alt="LeaseGuardAI Logo" width="120" style="border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3);" />
+  <img src="./assets/analyse_preview.png" alt="LeaseGuardAI Logo" width="120" style="border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3);" />
 </p>
 
 <h1 align="center">🔍 LeaseGuardAI</h1>
@@ -26,8 +26,8 @@
 <h2 align="center">📸 Visual Preview</h2>
 
 <p align="center">
-  <img src="./assets/analyse_document.png" width="49%" alt="LeaseGuardAI Document Analysis" style="border-radius: 8px; border: 1px solid #1a202c; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
-  <img src="./assets/dashboard_preview.png" width="49%" alt="LeaseGuardAI Dashboard View" style="border-radius: 8px; border: 1px solid #1a202c; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+  <img src="./assets/analyse_preview.png" width="49%" alt="LeaseGuardAI Document Analysis" style="border-radius: 8px; border: 1px solid #1a202c; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+  <img src="./assets/home_preview.png" width="49%" alt="LeaseGuardAI Dashboard View" style="border-radius: 8px; border: 1px solid #1a202c; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
 </p>
 
 ---
