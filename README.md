@@ -1,38 +1,59 @@
-# 🔍 OCR Agent — AI-Powered Lease Contract Analyser
+<p align="center">
+  <img src="./assets/analyse_document.png" alt="LeaseGuardAI Logo" width="120" style="border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3);" />
+</p>
 
-> **Privacy-first full-stack system**: upload an auto lease PDF, get instant OCR + AI analysis, fairness scoring, and negotiation tips — all results stored locally on your device.
+<h1 align="center">🔍 LeaseGuardAI</h1>
+
+<p align="center">
+  <strong>Privacy-First AI-Powered Lease Contract Analyser & Negotiation Coach</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ShibilAhamed701212/LeaseGuardAI/actions"><img src="https://github.com/ShibilAhamed701212/LeaseGuardAI/workflows/CI/CD%20Pipeline/badge.svg" alt="Build Status" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" /></a>
+  <img src="https://img.shields.io/badge/Node.js-18+-green.svg" alt="Node Version" />
+  <img src="https://img.shields.io/badge/React-18-blue.svg" alt="React Version" />
+  <img src="https://img.shields.io/badge/PostgreSQL-17-blue.svg" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Sentry-Monitored-purple.svg" alt="Sentry" />
+</p>
+
+<p align="center">
+  LeaseGuardAI is a privacy-first, full-stack application designed to demystify auto lease contracts. Users upload a PDF or image of their lease, and the system extracts key contract details, computes fairness ratings, highlights hidden risks, and provides actionable negotiation tips—all stored locally in your browser's IndexedDB.
+</p>
+
+---
+
+<h2 align="center">📸 Visual Preview</h2>
+
+<p align="center">
+  <img src="./assets/analyse_document.png" width="49%" alt="LeaseGuardAI Document Analysis" style="border-radius: 8px; border: 1px solid #1a202c; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+  <img src="./assets/dashboard_preview.png" width="49%" alt="LeaseGuardAI Dashboard View" style="border-radius: 8px; border: 1px solid #1a202c; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+</p>
 
 ---
 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
-- [Features](#features)
+- [Key Features](#-key-features)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
   - [1. Infrastructure (Docker)](#1-infrastructure-docker)
-  - [2. Backend](#2-backend)
-  - [3. Frontend](#3-frontend)
+  - [2. Backend Setup](#2-backend-setup)
+  - [3. Frontend Setup](#3-frontend-setup)
   - [4. Import n8n Workflow](#4-import-n8n-workflow)
 - [Environment Variables](#environment-variables)
-  - [Backend](#backend-env)
-  - [Frontend](#frontend-env)
+  - [Backend Configuration](#backend-configuration)
+  - [Frontend Configuration](#frontend-configuration)
 - [API Reference](#api-reference)
-- [Services](#services)
-  - [Backend (Node.js / Express)](#backend-nodejs--express)
-  - [Frontend (React / Vite)](#frontend-react--vite)
-  - [AI Service (Microservice)](#ai-service-microservice)
-  - [OCR Services](#ocr-services)
-  - [n8n Workflow](#n8n-workflow)
-- [Storage & Privacy](#storage--privacy)
+- [Core Services](#core-services)
+- [Storage & Privacy Policy](#storage--privacy-policy)
 - [Deployment](#deployment)
-  - [Backend → Render](#backend--render)
-  - [Frontend → Firebase Hosting](#frontend--firebase-hosting)
-- [Monitoring & Debugging](#monitoring--debugging)
-- [CI/CD](#cicd)
+- [Monitoring & Diagnostics](#monitoring--diagnostics)
+- [CI/CD Pipeline](#cicd-pipeline)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -40,30 +61,56 @@
 
 ## Overview
 
-OCR Agent is a full-stack application designed to demystify auto lease contracts. Users upload a PDF or image of their lease, and the system:
+LeaseGuardAI empowers consumers to understand complex lease agreements before signing. The pipeline executes five distinct steps:
 
-1. **Extracts text** via OCR (Google Cloud Vision / Tesseract / PaddleOCR)
-2. **Analyses the contract** using AI (Gemini 2.5 Flash, Ollama, or a custom OpenAI-compatible endpoint)
-3. **Returns structured data** — monthly payments, APR, term, residual value, mileage limits, penalties, risk scores, and fairness ratings
-4. **Provides negotiation tips** tailored to the specific contract's weak points
-5. **Stores results locally** in the browser's IndexedDB — no contract data ever persists on the server
+1. **OCR Extraction:** Scans physical images or PDF documents using Google Cloud Vision, Tesseract, or PaddleOCR.
+2. **AI Contract Analysis:** Extracts structured values (monthly payment, term, residual value, fees, mileage limits, and penalties) via Gemini 2.5 Flash, Ollama, or OpenAI.
+3. **Fairness Evaluation:** Automatically calculates a weighted score out of 100 based on financial ratios and penalty terms.
+4. **Negotiation Guidance:** Compiles tailored pointers on how to negotiate unfavorable terms.
+5. **Zero-Server Persistence:** Contract data is completely stored on the user's browser (IndexedDB). Files and results automatically expire and get deleted from the server.
 
 ---
 
-## Features
+## ✨ Key Features
 
-| Feature | Description |
-|---|---|
-| 🔍 Multi-engine OCR | Google Cloud Vision (native multimodal), Tesseract, PaddleOCR |
-| 🤖 Multi-model AI | Gemini 2.5 Flash (default), Ollama (local LLMs), custom OpenAI-compatible endpoints |
-| ⚖️ Fairness Scoring | 0–100 score computed from APR, price vs market, mileage limits, and penalty severity |
-| 💡 Negotiation Tips | Rule-based + AI-generated, prioritised by impact |
-| 🔐 Privacy First | Contract results stored only in browser IndexedDB; server deletes files after processing |
-| 📊 Risk Assessment | Financial and legal risk classification (Low / Medium / High) |
-| 💬 AI Chat (LeaseGuard) | Floating chat widget powered by Gemini — context-aware if a contract is loaded |
-| 📜 History | Full local history with vehicle info, date, and fairness score |
-| 🧠 Error Recovery | Self-healing worker, orphaned job cleanup, Sentry integration |
-| 🚀 CI/CD | GitHub Actions — lint, build, Docker validation, deploy to Render + Firebase |
+<table>
+  <thead>
+    <tr>
+      <th width="30%">Feature</th>
+      <th>Details & Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>🔍 Multi-Engine OCR</strong></td>
+      <td>Support for Google Cloud Vision (native multimodal), Tesseract OCR, or PaddleOCR (best for complex tabulations).</td>
+    </tr>
+    <tr>
+      <td><strong>🤖 Advanced AI Core</strong></td>
+      <td>Utilizes Gemini 2.5 Flash as default engine, with support for local models (Ollama) and custom OpenAI API endpoints.</td>
+    </tr>
+    <tr>
+      <td><strong>⚖️ Automated Scoring</strong></td>
+      <td>Calculates overall contract fairness by assessing APR, penalty weightings, maintenance distribution, and acquisition fees.</td>
+    </tr>
+    <tr>
+      <td><strong>🔐 True Privacy First</strong></td>
+      <td>Document contents never persist in PostgreSQL. Temporary uploads to S3/MinIO and Redis cache clear after 24 hours or user cleanup.</td>
+    </tr>
+    <tr>
+      <td><strong>💬 Interactive AI Coach</strong></td>
+      <td>A floating chat widget (LeaseGuard Coach) powered by Gemini helps you ask questions, analyze risks, and practice negotiation tactics.</td>
+    </tr>
+    <tr>
+      <td><strong>📊 Risk badge alerts</strong></td>
+      <td>Instantly tags legal and financial risks into color-coded severity levels (Low / Medium / High).</td>
+    </tr>
+    <tr>
+      <td><strong>🧠 Self-Healing Backend</strong></td>
+      <td>Stuck processing jobs automatically fail and trigger background cleanup routines to ensure system reliability.</td>
+    </tr>
+  </tbody>
+</table>
 
 ---
 
@@ -83,7 +130,7 @@ OCR Agent is a full-stack application designed to demystify auto lease contracts
 │  │ PostgreSQL   │  │   Redis     │  │  MinIO / S3      │    │
 │  │ (job meta)   │  │ (queue +    │  │ (file storage,   │    │
 │  │              │  │  results)   │  │  signed URLs)    │    │
-│  └──────────────┘  └──────┬──────┘  └──────────────────┘    │
+│  └──────────────┘  └───────┬─────┘  └──────────────────┘    │
 │                            │                                  │
 │  ┌─────────────────────────▼──────────────────────────────┐  │
 │  │            Background Worker (worker.ts)               │  │
@@ -106,228 +153,159 @@ ocr-agent/
 │
 ├── backend/                        # Express API + background worker
 │   ├── functions/
-│   │   ├── index.ts                # App entry point, route registration
-│   │   ├── worker.ts               # Background AI/OCR queue processor
+│   │   ├── index.ts                # App entry point & router initialization
+│   │   ├── worker.ts               # Background queue processor
 │   │   ├── upload/index.ts         # POST /upload
-│   │   ├── process/index.ts        # POST /process
+│   │   ├── process/index.ts        # POST /process (S3 validation & webhook trigger)
 │   │   ├── status/index.ts         # GET /status/:job_id
 │   │   ├── result/index.ts         # GET /result/:job_id
-│   │   ├── cleanup/index.ts        # DELETE /cleanup/:job_id
-│   │   ├── chat/index.ts           # POST /chat (LeaseGuard AI)
-│   │   ├── debug.ts                # GET /debug (diagnostics)
+│   │   ├── cleanup/index.ts        # DELETE /cleanup/:job_id (garbage collector)
+│   │   ├── chat/index.ts           # POST /chat (LeaseGuard conversational coach)
+│   │   ├── debug.ts                # GET /debug (health diagnostics dashboard)
 │   │   └── utils/
-│   │       ├── postgresClient.ts   # PG connection pool + job CRUD
-│   │       ├── redisClient.ts      # Redis queue + result cache
-│   │       ├── minioClient.ts      # S3-compatible file storage
-│   │       ├── n8nClient.ts        # n8n webhook trigger
-│   │       ├── logger.ts           # Structured logger + bug detection
-│   │       └── errorHandler.ts     # Global error handlers + auto-recovery
+│   │       ├── postgresClient.ts   # PG connection pool & migration runner
+│   │       ├── redisClient.ts      # Redis client wrapper & queue worker
+│   │       ├── minioClient.ts      # S3 client helper
+│   │       ├── n8nClient.ts        # n8n webhook helper
+│   │       ├── logger.ts           # Structured logging and error capturing
+│   │       └── errorHandler.ts     # Global uncaught exception handlers
 │   ├── package.json
 │   ├── tsconfig.json
-│   └── firebase.json               # Firebase Functions config (emulator)
+│   └── firebase.json
 │
 ├── frontend/                       # React SPA (Vite + TypeScript)
 │   ├── src/
-│   │   ├── App.tsx                 # Router + nav
-│   │   ├── main.tsx                # Entry point + Sentry init
+│   │   ├── App.tsx                 # Routing, navbar layout
+│   │   ├── main.tsx                # Bootstrap React app & Sentry Setup
 │   │   ├── pages/
-│   │   │   ├── Home.tsx            # Landing page
-│   │   │   ├── Upload.tsx          # Upload + processing flow
-│   │   │   ├── Result.tsx          # Analysis result view
-│   │   │   └── History.tsx         # Local document history
+│   │   │   ├── Home.tsx            # Interactive features home page
+│   │   │   ├── Upload.tsx          # Upload console with progress tracker
+│   │   │   ├── Result.tsx          # Fairness reports & tips UI
+│   │   │   └── History.tsx         # Saved lease history (IndexedDB)
 │   │   ├── components/
-│   │   │   ├── chat/ChatWidget.tsx # Floating AI chat (LeaseGuard)
-│   │   │   ├── result/ResultCard   # Structured result display
-│   │   │   ├── upload/FileUploader # Drag-and-drop file input
-│   │   │   ├── upload/ModelSelector# OCR + AI engine selector
-│   │   │   └── shared/             # Loader, StatusBar
-│   │   ├── hooks/
-│   │   │   ├── useUpload.ts        # Upload lifecycle
-│   │   │   ├── useProcess.ts       # Processing + polling
-│   │   │   └── useResult.ts        # Result fetch + local save
+│   │   │   ├── chat/ChatWidget.tsx # Floating AI chat sidebar
+│   │   │   ├── result/ResultCard   # Main result view cards
+│   │   │   ├── upload/FileUploader # HTML5 Drag-and-drop handler
+│   │   │   └── upload/ModelSelector# Engines dropdown configuration
+│   │   ├── hooks/                  # Custom react hooks for API orchestration
 │   │   ├── services/
-│   │   │   ├── api.ts              # All API calls
-│   │   │   └── storage/            # IndexedDB abstraction layer
-│   │   │       ├── indexedDB.ts
-│   │   │       ├── storageService.ts
-│   │   │       └── types.ts
-│   │   └── utils/
-│   │       ├── helpers.ts          # Formatters, validators
-│   │       └── debugger.ts         # Frontend error tracking
+│   │   │   ├── api.ts              # Fetch requests to backend routes
+│   │   │   └── storage/            # Local IndexedDB persistence
 │   ├── package.json
-│   ├── vite.config.ts
-│   └── tsconfig.json
+│   └── vite.config.ts
 │
 ├── services/
-│   ├── ai/                         # AI microservice (Express)
-│   │   ├── app.ts                  # Service entry point
-│   │   ├── controller/process.ts   # POST /ai/process handler
-│   │   ├── providers/
-│   │   │   ├── ollama.ts
-│   │   │   ├── openai.ts
-│   │   │   └── claude.ts
-│   │   ├── prompts/slaPrompt.ts    # SLA extraction prompts
-│   │   └── utils/
-│   │       ├── parser.ts           # JSON extraction from LLM output
-│   │       └── validator.ts        # Output normalization
-│   │
-│   ├── ocr/
-│   │   ├── tesseract/              # Tesseract OCR HTTP service (Python)
-│   │   └── paddle/                 # PaddleOCR HTTP service (Python)
-│   │
-│   └── shared/
-│       ├── schemas/contractSchema.ts
-│       └── utils/
-│           ├── fairnessEngine.ts   # Weighted fairness score computation
-│           ├── riskAnalyzer.ts     # Contract risk flag detection
-│           ├── negotiationEngine.ts# Tip generation logic
-│           ├── normalizer.ts       # Input type coercion
-│           └── businessLogic.ts    # Pipeline orchestrator
+│   ├── ai/                         # Optional standalone AI microservice
+│   ├── ocr/                        # Optional Python OCR microservices
+│   └── shared/                     # Shared Business Logic and Engines
+│       ├── utils/
+│       │   ├── fairnessEngine.ts   # Formulas for scoring calculations
+│       │   ├── riskAnalyzer.ts     # Flag identification logic
+│       │   └── negotiationEngine.ts# Actionable advice rules
 │
-├── infra/
+├── infra/                          # Docker orchestration configurations
 │   ├── docker/
-│   │   ├── docker-compose.yml      # Full stack: Postgres, Redis, MinIO, n8n, Ollama, OCR
-│   │   ├── setup.sh                # Linux setup script
-│   │   └── setup.ps1               # Windows PowerShell setup script
 │   └── postgres/
-│       └── init.sql                # Database schema + indexes
 │
-├── n8n/
-│   └── workflows/
-│       └── ocr_pipeline.json       # n8n workflow (import this)
-│
-├── .github/
-│   └── workflows/
-│       └── ci.yml                  # GitHub Actions CI/CD pipeline
-│
-├── firebase.json                   # Firebase Hosting config
-├── .firebaserc                     # Firebase project binding
-├── render.yaml                     # Render.com deploy blueprint
-└── README.md
+└── n8n/                            # n8n workflow backups
+```
 
+---
 
 ## Tech Stack
 
-### Backend
-| Layer | Technology |
-|---|---|
-| Runtime | Node.js 18 |
-| Framework | Express 4 |
-| Language | TypeScript 5 |
-| Database | PostgreSQL 16 (job metadata only) |
-| Cache / Queue | Redis 7 (ioredis) |
-| File Storage | MinIO / any S3-compatible store |
-| AI | Google Generative AI (`@google/generative-ai`) — Gemini 2.5 Flash |
-| PDF Parsing | `pdf-parse` |
-| Error Tracking | Sentry (`@sentry/node`) |
-| Build | esbuild |
+### Backend Infrastructure
+* **Runtime:** Node.js (v18+)
+* **Framework:** Express 4 (TypeScript 5)
+* **Metadata Store:** PostgreSQL 17 (Job statuses and metadata only)
+* **Message Queue / Cache:** Redis 7 (via `ioredis`)
+* **Storage Provider:** MinIO / Any AWS S3-compatible service
+* **AI & Parsing:** Google Generative AI SDK (Gemini 2.5 Flash), `pdf-parse`
+* **Telemetry:** Sentry Node SDK
 
-### Frontend
-| Layer | Technology |
-|---|---|
-| Framework | React 18 |
-| Language | TypeScript 5 |
-| Bundler | Vite 5 |
-| Router | React Router 6 |
-| Local Storage | IndexedDB (via custom abstraction) |
-| Error Tracking | Sentry (`@sentry/react`) |
+### Frontend Client
+* **Core:** React 18 & TypeScript 5
+* **Build System:** Vite 5
+* **Routing:** React Router DOM v6
+* **Database:** IndexedDB (via custom client storage services)
+* **Telemetry:** Sentry React SDK
 
-### Infrastructure
-| Component | Technology |
-|---|---|
-| CI/CD | GitHub Actions |
-| Backend Hosting | Render.com |
-| Frontend Hosting | Firebase Hosting |
-| Orchestration | n8n (optional webhook receiver) |
-| Container Runtime | Docker + Docker Compose |
-| OCR (optional) | Tesseract (Python/Flask) + PaddleOCR (Python/Flask) |
-| LLM (local, optional) | Ollama |
+---
 
 ## Prerequisites
 
-- **Node.js 18+**
-- **Docker + Docker Compose** (for local infrastructure)
-- **A Gemini API key** ([get one free](https://aistudio.google.com/app/apikey))
-- `npm` or `pnpm`
-- Firebase CLI (`npm install -g firebase-tools`) — for deployment
-- A running PostgreSQL, Redis, and S3/MinIO instance (provided via Docker Compose for local dev)
+Ensure you have the following installed on your machine:
+* **Node.js (v18 or v20)**
+* **Docker & Docker Compose** (needed for running the local services stack)
+* **PostgreSQL Native Command Line Interface** (Optional)
+* A valid **Gemini API Key** ([Register at Google AI Studio](https://aistudio.google.com/app/apikey))
+
+---
 
 ## Quick Start
 
 ### 1. Infrastructure (Docker)
-
+Set up the backend components (Redis, PostgreSQL, MinIO, OCR workers, n8n, Ollama):
 ```bash
 cd infra/docker
-cp .env.example .env   # Fill in your values (PG_USER, PG_PASSWORD, etc.)
+cp .env.example .env    # Fill in password values for services
 
-# Linux / macOS
-chmod +x setup.sh && ./setup.sh
+# On Unix-based systems (Linux/macOS)
+chmod +x setup.sh
+./setup.sh
 
-# Windows (PowerShell)
+# On Windows (PowerShell)
 .\setup.ps1
 ```
+* MinIO Console: `http://localhost:9001`
+* n8n Interface: `http://localhost:5678`
 
-This starts: **PostgreSQL**, **Redis**, **MinIO**, **n8n**, **Ollama**, **Tesseract OCR**, and **PaddleOCR**.
-
-After startup, the MinIO console is at `http://localhost:9001` and n8n is at `http://localhost:5678`.
-
-### 2. Backend
-
+### 2. Backend Setup
+Load the variables and run the Node server:
 ```bash
 cd backend
-cp .env.example .env   # Fill in PG_USER, PG_PASSWORD, GEMINI_API_KEY, etc.
-npm install
-npm run build
-node lib/index.js
-```
-
-The server starts on **port 10000** by default (`http://localhost:10000`).
-
-To run with the Firebase emulator instead:
-
-```bash
-firebase emulators:start --only functions
-```
-
-### 3. Frontend
-
-```bash
-cd frontend
-cp .env.example .env   # Set VITE_API_BASE_URL=http://localhost:10000
+cp .env.example .env    # Configure your PG, Redis, and Gemini Credentials
 npm install
 npm run dev
 ```
+The server will boot on **port 10000** (`http://localhost:10000`). If downstream services are missing, the server launches in **diagnostic mode** automatically.
 
-The dev server starts at **http://localhost:5173**.
+### 3. Frontend Setup
+Install dependencies and run Vite:
+```bash
+cd frontend
+cp .env.example .env    # Make sure VITE_API_BASE_URL points to localhost:10000
+npm install
+npm run dev
+```
+Open **`http://localhost:5173`** to access the user dashboard.
 
 ### 4. Import n8n Workflow
-
-1. Open n8n UI at `http://localhost:5678`
+1. Navigate to n8n at `http://localhost:5678`
 2. Go to **Workflows → Add → Import from File**
-3. Select `n8n/workflows/ocr_pipeline.json`
+3. Select `n8n/workflows/ocr_pipeline.json` and activate it.
 
-> **Note:** The n8n workflow is a lightweight webhook receiver. The actual OCR and AI processing is done by the backend worker (`worker.ts`), not by n8n.
+---
 
 ## Environment Variables
 
-### Backend (.env) {#backend-env}
-
+### Backend Configuration (.env)
 ```env
-# PostgreSQL (REQUIRED)
+# Database Credentials
 PG_HOST=localhost
-PG_PORT=5433           # 5433 = host-mapped Docker port
+PG_PORT=5432
 PG_DATABASE=ocr_agent
 PG_USER=postgres
 PG_PASSWORD=postgres
-PG_SSL=false           # Set to "true" for Render/production
+PG_SSL=false
 
-# Redis
+# Caching & Queue
 REDIS_HOST=localhost
-REDIS_PORT=6380        # 6380 = host-mapped Docker port
+REDIS_PORT=6380
 REDIS_PASSWORD=
-REDIS_TLS=false        # Set to "true" for Upstash/production
+REDIS_TLS=false
 
-# MinIO / S3-compatible storage
+# Object Storage (MinIO)
 MINIO_ENDPOINT=localhost
 MINIO_PORT=9000
 MINIO_USE_SSL=false
@@ -335,333 +313,80 @@ MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 MINIO_BUCKET=ocr-agent
 
-# n8n (optional)
-N8N_WEBHOOK_URL=http://localhost:5678/webhook/ocr-process
-N8N_SECRET=your-n8n-secret
+# Gemini Credentials
+GEMINI_API_KEY=AIzaSy...
 
-# AI
-GEMINI_API_KEY=your-gemini-api-key
-
-# App
+# Port Configuration
 PORT=10000
-SIGNED_URL_EXPIRY_SECONDS=3600
-REDIS_RESULT_TTL_SECONDS=86400  # 24h — results auto-expire
 ```
 
-### Frontend (.env) {#frontend-env}
-
-```env
-VITE_API_BASE_URL=http://localhost:10000   # Local dev
-# VITE_API_BASE_URL=https://leaseguardai.onrender.com  # Production
-```
+---
 
 ## API Reference
 
-All responses are JSON. Base URL: `http://localhost:10000` (or your deployed URL).
+| Method | Endpoint | Description | Payloads / Request Body |
+| :--- | :--- | :--- | :--- |
+| **POST** | `/upload` | Stream a contract file to storage. | `multipart/form-data` containing `file` & `user_id` |
+| **POST** | `/process` | Launch the OCR & AI analysis worker. | `{ "job_id": "uuid", "ocr": "google_cloud", "ai": "gemini" }` |
+| **GET** | `/status/:job_id` | Get the current step of a job. | Returns status (`uploaded`, `processing`, `completed`, `failed`) |
+| **GET** | `/result/:job_id` | Pull completed analysis result. | Returns JSON details (fairness engine metrics, risks, Vin) |
+| **DELETE**| `/cleanup/:job_id` | Terminate database entries & delete files. | Deletes local Redis cache, PostgreSQL metadata status & MinIO files |
+| **POST** | `/chat` | Chat with LeaseGuard Coach. | `{ "message": "query", "history": [], "contract_context": {} }` |
+| **GET** | `/health` | Fetch dependencies connectivity statuses. | Simple JSON showing connection status to Postgres, Redis, S3 |
 
-### `POST /upload`
-Upload a lease document (PDF, JPG, PNG, or WEBP — max 20 MB).
+---
 
-**Request:** `multipart/form-data`
-| Field | Type | Description |
-|---|---|---|
-| `file` | File | The lease document |
-| `user_id` | string | Any non-empty identifier |
+## Core Services
 
-**Response `200`:**
-```json
-{ "job_id": "uuid", "status": "uploaded" }
-```
+### ⚖️ The Fairness Engine
+Computes a weighted overall fairness score based on critical parameters extracted by the LLM:
+* **Interest Rate (APR):** Higher lease rates decrease the score.
+* **Capitalized Cost:** The closer the lease price to market MSRP, the higher the score.
+* **Mileage Limitations:** Low annual caps (e.g., < 10k miles/year) accompanied by high excess charges decrease the score.
+* **Maintenance & Insurance Responsibilities:** Clauses shifting typical lessor maintenance obligations onto the lessee result in penalty adjustments.
 
-### `POST /process`
-Trigger AI analysis of an uploaded document.
+### 🔐 Storage & Privacy Policy
+* **Zero Persistence on Server:** LeaseGuardAI never stores contract text, PII, or vehicle details on persistent server disks. PostgreSQL stores only audit timestamps and status states.
+* **Temporary Cache:** MinIO buckets and Redis cache keys live with a strict **24-hour Time-to-Live (TTL)**. Pushing the cleanup button removes the storage entries immediately.
+* **Local Sandboxing:** Complete analysis results are saved in the client-side IndexedDB sandbox, preventing data leaks.
 
-**Request body:**
-```json
-{
-  "job_id": "uuid",
-  "ocr": "google_cloud",
-  "ai": "gemini",
-  "config": { "apiKey": "optional-override" }
-}
-```
-
-| Field | Values |
-|---|---|
-| `ocr` | `google_cloud` |
-| `ai` | `gemini` \| `ollama` \| `custom` |
-
-**Response `200`:**
-```json
-{ "job_id": "uuid", "status": "processing" }
-```
-
-### `GET /status/:job_id`
-Poll processing status.
-
-**Response `200`:**
-```json
-{ "job_id": "uuid", "status": "completed" }
-```
-
-Possible statuses: `uploaded` → `reading_document` → `analyzing_contract` → `completed` | `failed`
-
-### `GET /result/:job_id`
-Fetch the analysis result (only available once status is `completed`).
-
-**Response `200`:**
-```json
-{
-  "job_id": "uuid",
-  "status": "completed",
-  "data": {
-    "sla": {
-      "currency": "INR",
-      "monthly_payment": 45000,
-      "term_months": 36,
-      "total_cost": 1620000,
-      "deposit": 100000,
-      "mileage": "15000 km/year",
-      "residual_value": "Lessor retains ownership",
-      "gap_liability": "Lessee",
-      "maintenance": "Lessee",
-      "insurance": "Lessee",
-      "taxes": "Lessee",
-      "purchase_option": false,
-      "penalties": ["Early termination: 3 months rent", "Excess mileage: ₹5/km"],
-      "financial_risk": "Medium",
-      "legal_risk": "Low",
-      "fairness_score": 72,
-      "fairness_explanation": "Contract is above average but maintenance responsibility is a concern."
-    },
-    "vin": null,
-    "price_estimate": {
-      "market_value": 1500000,
-      "confidence": 80,
-      "currency": "INR"
-    },
-    "fairness_score": 72,
-    "negotiation_tips": [
-      "Maintenance clause places full burden on lessee — negotiate shared responsibility.",
-      "Request APR disclosure in writing before signing."
-    ]
-  }
-}
-```
-
-### `DELETE /cleanup/:job_id`
-Delete all server-side data for a job (file in MinIO, Redis keys, marks job as deleted in PostgreSQL).
-
-**Response `200`:**
-```json
-{ "job_id": "uuid", "status": "deleted" }
-```
-
-### `POST /chat`
-Send a message to LeaseGuard AI (context-aware negotiation coach).
-
-**Request body:**
-```json
-{
-  "message": "Is this lease fair?",
-  "history": [{ "role": "user", "content": "..." }, { "role": "assistant", "content": "..." }],
-  "contract_context": { /* optional: result data object */ }
-}
-```
-
-**Response `200`:**
-```json
-{ "reply": "Based on your contract...", "tokens_used": 430 }
-```
-
-### `GET /health`
-Service health check — returns connectivity status for PostgreSQL, Redis, and MinIO.
-
-### `GET /debug`
-Diagnostics dashboard — queue length, worker heartbeat, job stats, bug predictions.
-
-## Services
-
-### Backend (Node.js / Express)
-
-The backend serves as the central orchestrator:
-
-- **Upload handler** (`/upload`): Accepts multipart uploads via Busboy, validates MIME type, streams to MinIO, creates a job record in PostgreSQL.
-- **Process handler** (`/process`): Generates a signed MinIO URL, updates job state in PostgreSQL + Redis, pushes the job to a Redis queue, and optionally fires an n8n webhook.
-- **Background worker** (`worker.ts`): Polls the Redis queue (`LPOP`), downloads the file, runs OCR + AI, stores the result back in Redis with a 24-hour TTL.
-- **Result handler** (`/result`): Fetches the result from Redis only — contract data never touches PostgreSQL.
-- **Chat handler** (`/chat`): Stateless multi-turn chat powered by Gemini. Accepts optional contract context for personalised advice.
-- **Self-healing**: On startup and every 5 minutes, the worker queries PostgreSQL for jobs stuck in `processing` for more than 5 minutes and marks them as `failed`.
-
-### Frontend (React / Vite)
-
-A single-page application with four routes:
-
-| Route | Page | Description |
-|---|---|---|
-| `/` | Home | Feature overview and quick-start |
-| `/upload` | Upload | File picker, engine selector, processing status |
-| `/result/:job_id` | Result | Full contract analysis with risk badges, fairness meter, and negotiation tips |
-| `/history` | History | All locally stored past analyses (IndexedDB) |
-
-The **LeaseGuard AI chat widget** floats on all pages and can reference the currently loaded contract for contextual advice.
-
-### AI Service (Microservice)
-
-Located at `services/ai/` — a standalone Express microservice for AI inference. This is optional when using the backend's built-in Gemini integration, but supports a fallback chain:
-
-```
-ollama → openai → claude
-```
-
-Key components:
-- `providers/` — one file per LLM provider (Ollama, OpenAI, Claude)
-- `prompts/slaPrompt.ts` — structured extraction prompts
-- `utils/parser.ts` — robust JSON extraction from LLM output (handles markdown fences, partial JSON, single quotes)
-- `utils/validator.ts` — type coercion and output normalization
-
-### OCR Services
-
-Two optional Python/Flask microservices for self-hosted OCR:
-
-| Service | Port | Description |
-|---|---|---|
-| **Tesseract** (`services/ocr/tesseract/`) | 8884 | `POST /ocr` — supports PDF and images |
-| **PaddleOCR** (`services/ocr/paddle/`) | 8885 | `POST /ocr` — higher accuracy for complex layouts |
-
-Both return `{ "text": "...", "char_count": N }`.
-
-The default pipeline uses **Gemini's native multimodal OCR** (no separate service needed). The Python OCR services are available for air-gapped or cost-sensitive deployments.
-
-### n8n Workflow
-
-The included workflow (`n8n/workflows/ocr_pipeline.json`) is a lightweight webhook receiver:
-
-1. Receives the job payload from `/process`
-2. Validates required fields (`job_id`, `file_url`, `ocr`, `ai`)
-3. Acknowledges immediately
-
-The actual processing is done by the Node.js background worker. n8n is present for auditability and can be extended to add notifications, post-processing steps, or integration with external systems.
-
-## Storage & Privacy
-
-This system is designed with privacy as a core principle:
-
-- **Contract text and document content are never stored in the database.** PostgreSQL holds only job metadata (UUID, status, timestamps, engine selection).
-- **Results are stored in Redis with a 24-hour TTL.** After expiry, no trace of the contract content remains on the server.
-- **Uploaded files are deleted** when the client calls `DELETE /cleanup/:job_id` or when the job is cleaned up.
-- **The frontend stores results in the browser's IndexedDB** — local to the user's device, not synced anywhere.
-- **The logger sanitizes sensitive fields** (`password`, `apiKey`, `token`, `secret`) before writing to log files.
+---
 
 ## Deployment
 
-### Backend → Render
+### Backend to Render
+A `render.yaml` template is pre-configured for deployment.
+1. Connect your repository to Render.
+2. Link Redis and PostgreSQL add-ons.
+3. Configure the environment variables in your Render Dashboard.
 
-A `render.yaml` Blueprint is included for one-click deployment:
-
-```bash
-# Push to main branch — GitHub Actions will trigger the Render deploy hook
-git push origin main
-```
-
-Required Render environment variables (set in the Render dashboard under **Environment**):
-
-`PG_HOST`, `PG_USER`, `PG_PASSWORD`, `PG_DATABASE`, `PG_SSL=true`, `REDIS_URL`, `REDIS_TLS=true`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `GEMINI_API_KEY`
-
-### Frontend → Firebase Hosting
-
+### Frontend to Firebase Hosting
+Deploy your static React assets to Firebase:
 ```bash
 cd frontend
 npm run build
-
 firebase login
 firebase deploy --only hosting
 ```
+*Vite build checks and automated test runs execute via GitHub Actions on all master PRs.*
 
-Or push to `main` — GitHub Actions (`ci.yml`) will build and deploy automatically using the `FIREBASE_SERVICE_ACCOUNT` secret.
+---
 
-The live production URL is configured in `frontend/.env.production`:
-
-```env
-VITE_API_BASE_URL=https://leaseguardai.onrender.com
-```
-
-## Monitoring & Debugging
-
-### Sentry
-Both the backend and frontend are instrumented with Sentry for error tracking and performance profiling. The DSN is baked into the source — replace it with your own project DSN before deploying.
-
-### Backend debug endpoints
-
-| Endpoint | Description |
-|---|---|
-| `GET /health` | PostgreSQL, Redis, MinIO connectivity |
-| `GET /diagnostic` | Full health check with memory usage and uptime |
-| `GET /debug` | Queue length, worker heartbeat, job stats by status |
-| `GET /debug/logs?hours=24&level=error` | Structured log viewer |
-| `GET /debug/predictions` | AI-predicted bug patterns based on error frequency |
-| `GET /debug/errors` | Error tracker with occurrence counts |
-
-### Frontend debug console
-
-A `__DEBUG__` object is exposed on `window` in all environments:
-
-```javascript
-window.__DEBUG__.getSystemStatus()   // Error rate, recent errors, top issues
-window.__DEBUG__.getBugPredictions() // Detected bug patterns
-```
-
-## CI/CD
-
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` or `develop` and on pull requests to `main`:
-
-| Job | What it does |
-|---|---|
-| `backend-check` | TypeScript compile (`npm run build`) |
-| `frontend-check` | Vite build (`npm run build`) |
-| `docker-validate` | Validates both Docker Compose files |
-| `deploy-backend` | Triggers Render deploy hook (main only) |
-| `deploy-frontend` | Builds and deploys to Firebase Hosting (main only) |
-
-Required repository secrets:
-
-| Secret | Description |
-|---|---|
-| `RENDER_DEPLOY_HOOK_URL` | Render deploy hook URL |
-| `FIREBASE_SERVICE_ACCOUNT` | Firebase service account JSON |
-
-## What Was Fixed in the Last Patch
-
-- `ResultCard` — fixed `price_estimate.value` → `price_estimate.market_value`
-- `useResult` hook — now maps result into `StoredDocument` and saves via the full storage abstraction
-- `HistoryList` — uses `getDocumentSummaries()` / `deleteDocument()`, shows vehicle and date
-- `History` page — loads document from IndexedDB by `job_id` with loading/error state
-- `postgresClient.ts` — runtime guard requires `PG_USER` + `PG_PASSWORD` env vars
-- `storage/types.ts` — new file with `StoredDocument`, `DocumentSummary`, `StorageService`
-- `storage/indexedDB.ts` — full IndexedDB implementation with versioned schema and indexes
-- `storage/storageService.ts` — abstraction layer, `getDocumentSummaries()`, `documentExists()`
-- `storage/index.ts` — barrel export replacing the old simple storage shim
-
-## Project Governance
-
-To ensure a professional and transparent development environment, this project follows several guidelines:
-
-- **[LICENSE](LICENSE)**: Licensed under the MIT License.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Guidelines for contributing to the project.
-- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)**: Standards of behavior for our community.
-- **[SECURITY.md](SECURITY.md)**: How to report security vulnerabilities.
+## Monitoring & Diagnostics
+* **Sentry Logging:** Monitored on both client and server layers.
+* **Diagnostic Route:** Visit `GET /diagnostic` or `GET /debug` on the backend server for memory configurations, queue sizes, and predicted error patterns.
+* **Console Debugging:** Access the custom debug interface directly from the browser by typing `window.__DEBUG__.getSystemStatus()` in the developer console.
 
 ---
 
 ## Contributing
 
-1. Fork the repository and create a feature branch: `git checkout -b feat/your-feature`
-2. Make your changes and ensure `npm run build` passes in both `backend/` and `frontend/`
-3. Run Docker Compose to verify the full stack works end-to-end
-4. Open a pull request against `main`
+1. Fork the repository and create your branch: `git checkout -b feat/my-improvement`
+2. Add your code changes and make sure tests run clean: `npm run build`
+3. Open a pull request against `main` for review.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
