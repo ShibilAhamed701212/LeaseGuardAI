@@ -96,13 +96,17 @@ export function ChatWidget({ contractData }: ChatWidgetProps) {
       // Bullet points
       .replace(/^[-•] (.+)/gm, "<li>$1</li>")
       // Numbered lists
-      .replace(/^\d+\. (.+)/gm, "<li>$1</li>")
-      // Paragraphs
+      .replace(/^\d+\. (.+)/gm, "<li>$1</li>");
+
+    // Wrap consecutive <li> in <ul> BEFORE converting newlines
+    html = html.replace(/((?:<li>.*?<\/li>\n?)+)/g, (match) => {
+      return `<ul>${match.replace(/\n/g, "")}</ul>`;
+    });
+
+    // Paragraphs & line breaks (on remaining non-list content)
+    html = html
       .replace(/\n\n/g, "</p><p>")
       .replace(/\n/g, "<br />");
-
-    // Wrap loose <li> in <ul>
-    html = html.replace(/(<li>.*?<\/li>)+/g, "<ul>$&</ul>");
 
     return `<p>${html}</p>`;
   };

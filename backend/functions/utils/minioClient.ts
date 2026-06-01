@@ -23,6 +23,7 @@ function getClient(): S3Client {
   if (_client) return _client;
 
   let endpointFromEnv = process.env.MINIO_ENDPOINT ?? "";
+  const port = process.env.MINIO_PORT;
   
   // Use HTTPS by default for all cloud services unless explicitly disabled
   const protocol = process.env.MINIO_USE_SSL === "false" ? "http://" : "https://";
@@ -32,6 +33,19 @@ function getClient(): S3Client {
   let finalEndpoint = endpointFromEnv;
   if (!finalEndpoint.startsWith("http")) {
     finalEndpoint = `${protocol}${finalEndpoint}`;
+  }
+
+  // Append MINIO_PORT if set and not already present in the endpoint
+  if (port) {
+    try {
+      const parsed = new URL(finalEndpoint);
+      if (!parsed.port) {
+        parsed.port = port;
+        finalEndpoint = parsed.origin + parsed.pathname.replace(/\/$/, "");
+      }
+    } catch {
+      finalEndpoint = `${finalEndpoint}:${port}`;
+    }
   }
 
   logger.info("Initializing S3 client", { endpoint: finalEndpoint, bucket: BUCKET });
@@ -110,6 +124,17 @@ export async function deleteFile(objectName: string): Promise<void> {
   const client = getClient();
   await client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: objectName }));
   logger.info("File deleted from S3", { objectName });
+}
+
+/** Check if a file exists in S3 */
+export async function checkFileExists(objectName: string): Promise<boolean> {
+  try {
+    const client = getClient();
+    await client.send(new HeadObjectCommand({ Bucket: BUCKET, Key: objectName }));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Check S3 health */

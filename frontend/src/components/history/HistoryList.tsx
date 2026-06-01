@@ -1,11 +1,11 @@
-﻿import{useEffect,useState}from'react'
+import{useEffect,useState}from'react'
 import{getDocumentSummaries,deleteDocument}from'../../services/storage'
 import type{DocumentSummary}from'../../services/storage/types'
 import{truncate}from'../../utils/helpers'
 import styles from'./HistoryList.module.css'
 export function HistoryList({onSelect}:{onSelect:(id:string)=>void}){
   const[items,setItems]=useState<DocumentSummary[]>([])
-  const[busy,setBusy]=useState(false)
+  const[busy,setBusy]=useState(true)
   useEffect(()=>{load()},[])
   async function load(){setBusy(true);try{setItems(await getDocumentSummaries())}finally{setBusy(false)}}
   async function handleDelete(id:string,e:React.MouseEvent){e.stopPropagation();await deleteDocument(id);load()}

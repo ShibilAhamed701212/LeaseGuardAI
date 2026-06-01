@@ -1,7 +1,7 @@
 // functions/cleanup/index.ts — DELETE /cleanup/:job_id
 
 import express, { type Request, type Response } from "express";
-import { deleteFile }              from "../utils/minioClient";
+import { deleteFile, checkFileExists } from "../utils/minioClient";
 import { deleteJobKeys }           from "../utils/redisClient";
 import { getJob, updateJobStatus } from "../utils/postgresClient";
 import { logger } from "../utils/logger";
@@ -26,14 +26,18 @@ router.delete("/:job_id", async (req: Request, res: Response): Promise<void> => 
 
     const warnings: string[] = [];
 
-    // 2. Delete file from MinIO (try all common extensions)
+    // 2. Delete file from MinIO (verify existence first, then delete)
     const extensions = ["pdf", "jpg", "jpeg", "png", "webp"];
     let deleted = false;
     for (const ext of extensions) {
+      const objectName = `uploads/${job_id}/file.${ext}`;
       try {
-        await deleteFile(`uploads/${job_id}/file.${ext}`);
-        deleted = true;
-        break;
+        const exists = await checkFileExists(objectName);
+        if (exists) {
+          await deleteFile(objectName);
+          deleted = true;
+          break;
+        }
       } catch {
         // try next extension
       }

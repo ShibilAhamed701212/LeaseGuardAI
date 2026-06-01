@@ -25,7 +25,7 @@ export function ResultCard({ result }: { result: ResultPayload }) {
     ['Insurance', sla.insurance],
     ['Taxes', sla.taxes],
     ['GAP Liability', sla.gap_liability],
-  ].filter(f => f[1] !== undefined) as [string, string][]
+  ].filter(f => f[1] != null && f[1] !== '') as [string, string][]
 
   return (
     <div className={styles.wrapper}>

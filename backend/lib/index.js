@@ -777,6 +777,7 @@ var init_errorHandler = __esm({
 });
 
 // functions/index.ts
+var import_dotenv = __toESM(require("dotenv"));
 var import_express8 = __toESM(require("express"));
 var import_cors = __toESM(require("cors"));
 var Sentry2 = __toESM(require("@sentry/node"));
@@ -797,10 +798,22 @@ function getClient2() {
   if (_client2)
     return _client2;
   let endpointFromEnv = process.env.MINIO_ENDPOINT ?? "";
+  const port2 = process.env.MINIO_PORT;
   const protocol = process.env.MINIO_USE_SSL === "false" ? "http://" : "https://";
   let finalEndpoint = endpointFromEnv;
   if (!finalEndpoint.startsWith("http")) {
     finalEndpoint = `${protocol}${finalEndpoint}`;
+  }
+  if (port2) {
+    try {
+      const parsed = new URL(finalEndpoint);
+      if (!parsed.port) {
+        parsed.port = port2;
+        finalEndpoint = parsed.origin + parsed.pathname.replace(/\/$/, "");
+      }
+    } catch {
+      finalEndpoint = `${finalEndpoint}:${port2}`;
+    }
   }
   logger.info("Initializing S3 client", { endpoint: finalEndpoint, bucket: BUCKET });
   _client2 = new import_client_s3.S3Client({
@@ -857,6 +870,15 @@ async function deleteFile(objectName) {
   const client = getClient2();
   await client.send(new import_client_s3.DeleteObjectCommand({ Bucket: BUCKET, Key: objectName }));
   logger.info("File deleted from S3", { objectName });
+}
+async function checkFileExists(objectName) {
+  try {
+    const client = getClient2();
+    await client.send(new import_client_s3.HeadObjectCommand({ Bucket: BUCKET, Key: objectName }));
+    return true;
+  } catch {
+    return false;
+  }
 }
 async function checkStorageHealth() {
   try {
@@ -1138,8 +1160,11 @@ router3.post("/", async (req, res) => {
     for (const ext of extensions) {
       const objectName = `uploads/${job_id}/file.${ext}`;
       try {
-        file_url = await getSignedUrl(objectName);
-        break;
+        const exists = await checkFileExists(objectName);
+        if (exists) {
+          file_url = await getSignedUrl(objectName);
+          break;
+        }
       } catch {
       }
     }
@@ -1234,10 +1259,14 @@ router5.delete("/:job_id", async (req, res) => {
     const extensions = ["pdf", "jpg", "jpeg", "png", "webp"];
     let deleted = false;
     for (const ext of extensions) {
+      const objectName = `uploads/${job_id}/file.${ext}`;
       try {
-        await deleteFile(`uploads/${job_id}/file.${ext}`);
-        deleted = true;
-        break;
+        const exists = await checkFileExists(objectName);
+        if (exists) {
+          await deleteFile(objectName);
+          deleted = true;
+          break;
+        }
       } catch {
       }
     }
@@ -1774,6 +1803,7 @@ function startWorker() {
 }
 
 // functions/index.ts
+import_dotenv.default.config();
 Sentry2.init({
   dsn: "https://8cb99fb0212ca09a93a3abbcef59e90b@o4511106055208960.ingest.de.sentry.io/4511106111504464",
   integrations: [

@@ -257,6 +257,3 @@ export function setupFrontendErrorHandlers(): void {
   console.log("Frontend debug system initialized");
 }
 
-if (typeof window !== "undefined") {
-  setupFrontendErrorHandlers();
-}

@@ -3,7 +3,7 @@
 import express, { type Request, type Response } from "express";
 import { getJob, updateJobStatus } from "../utils/postgresClient";
 import { pushJob, setJobStatus }   from "../utils/redisClient";
-import { getSignedUrl }            from "../utils/minioClient";
+import { getSignedUrl, checkFileExists } from "../utils/minioClient";
 import { triggerN8nWebhook }       from "../utils/n8nClient";
 import { logger } from "../utils/logger";
 
@@ -61,14 +61,17 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // 2. Generate signed MinIO URL for n8n (try all possible extensions)
+    // 2. Find uploaded file in MinIO (verify existence with HeadObject, then sign)
     const extensions = ["pdf", "jpg", "jpeg", "png", "webp"];
     let file_url   = "";
     for (const ext of extensions) {
       const objectName = `uploads/${job_id}/file.${ext}`;
       try {
-        file_url = await getSignedUrl(objectName);
-        break;
+        const exists = await checkFileExists(objectName);
+        if (exists) {
+          file_url = await getSignedUrl(objectName);
+          break;
+        }
       } catch {
         // try next extension
       }
